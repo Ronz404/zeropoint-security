@@ -284,6 +284,29 @@ services:
   # OUR CUSTOM APP (Nessus-style UI)
   # ====================================================================
 
+  # ----- Ollama: self-hosted LLM for AI remediation guidance -----
+  ollama:
+    image: ollama/ollama:latest
+    restart: on-failure
+    volumes:
+      - ollama_data:/root/.ollama
+    # No external port; the backend reaches it on the internal Docker network.
+    # Uncomment to expose for direct testing: ports: ["11434:11434"]
+
+  # One-shot helper that pulls the model on first start, then exits.
+  ollama-pull:
+    image: ollama/ollama:latest
+    restart: "no"
+    depends_on:
+      - ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sleep 6
+        OLLAMA_HOST=http://ollama:11434 ollama pull ${OLLAMA_MODEL:-llama3.2:3b}
+
   backend:
     build: ./backend
     restart: on-failure
@@ -292,12 +315,17 @@ services:
       GVM_USER: ${GVM_USER:-admin}
       GVM_PASSWORD: ${GVM_PASSWORD:-admin}
       APP_SECRET: ${APP_SECRET:-please-change-me}
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-true}
     volumes:
       - gvmd_socket_vol:/run/gvmd
     ports:
       - "8000:8000"
     depends_on:
       gvmd:
+        condition: service_started
+      ollama:
         condition: service_started
 
   frontend:
@@ -326,3 +354,4 @@ volumes:
   gsa_data_vol:
   nginx_config_vol:
   nginx_certificates_vol:
+  ollama_data:

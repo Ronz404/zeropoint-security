@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     app_secret: str = "change-me"
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
+    # Ollama LLM integration for AI remediation guidance
+    ollama_url: str = "http://ollama:11434"
+    ollama_model: str = "llama3.2:3b"
+    ollama_enabled: bool = True
+    ollama_timeout_seconds: int = 120
+
     class Config:
         env_file = ".env"
         env_prefix = ""

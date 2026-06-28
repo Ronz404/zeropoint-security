@@ -32,16 +32,32 @@ function AiRemediation({ finding }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [elapsed, setElapsed] = useState(0);
 
   async function generate() {
     setLoading(true);
     setError('');
+    setElapsed(0);
+    const startTime = Date.now();
+    const timer = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
     try {
       const r = await api.getRemediation(finding);
       setResult(r);
     } catch (err) {
-      setError(err.message || 'Failed to generate recommendation');
+      const msg = err.message || '';
+      if (msg.includes('504') || msg.includes('timeout')) {
+        setError(
+          'Gateway timeout. The AI model may be loading into memory for the first time. ' +
+          'This usually takes 30-60 seconds. Please wait a moment and try again - subsequent ' +
+          'requests will be much faster.'
+        );
+      } else {
+        setError(msg || 'Failed to generate recommendation');
+      }
     } finally {
+      clearInterval(timer);
       setLoading(false);
     }
   }
@@ -56,13 +72,20 @@ function AiRemediation({ finding }) {
             <strong>AI Remediation Guidance</strong>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
               Get a plain-language recommendation for this finding.
+              {loading && elapsed > 5 && (
+                <span> First call loads the model (~30-60s). Subsequent calls are fast.</span>
+              )}
             </div>
           </div>
           <button className="btn" onClick={generate} disabled={loading}>
-            {loading ? <><Loader2 size={14} /> Generating...</> : 'Generate'}
+            {loading ? <><Loader2 size={14} /> Generating ({elapsed}s)...</> : 'Generate'}
           </button>
         </div>
-        {error && <div style={{ color: 'var(--critical)', fontSize: 12, marginTop: 8 }}>{error}</div>}
+        {error && (
+          <div style={{ color: 'var(--critical)', fontSize: 12, marginTop: 8, lineHeight: 1.5 }}>
+            {error}
+          </div>
+        )}
       </div>
     );
   }
@@ -81,7 +104,7 @@ function AiRemediation({ finding }) {
         {result.remediation}
       </div>
       <div style={{ fontSize: 10, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-        Model: {result.model}  ·  Matched pattern: {result.matched_pattern || 'generic'}
+        Model: {result.model}  ·  Pattern: {result.matched_pattern || 'generic'}
         <br />
         {result.note}
       </div>
