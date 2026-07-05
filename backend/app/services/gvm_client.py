@@ -241,8 +241,13 @@ def _flatten_report(outer: ET.Element) -> dict:
 
 
 def list_reports() -> list[dict]:
+    """Return all completed reports, newest first.
+    gvmd defaults to ~10 rows; we override with a higher limit and sort."""
     with gmp_session() as gmp:
-        response = gmp.get_reports()
+        # rows=200 should be enough for SME use; sort by date descending
+        response = gmp.get_reports(
+            filter_string="rows=200 sort-reverse=date"
+        )
         return [_flatten_report(r) for r in response.findall("report")]
 
 
@@ -655,8 +660,21 @@ def list_cves_paginated(page: int = 1, page_size: int = 50,
     first = (page - 1) * page_size + 1
     filter_parts = [f"first={first}", f"rows={page_size}"]
     if search:
-        # GMP filter syntax: name field matches the search term
-        filter_parts.append(f'name~"{search}"')
+        # GMP CVE query only indexes the `name` (CVE ID) column reliably;
+        # `description` is not a filterable field so mixing it in returns
+        # unfiltered results. To let users search by keyword like "log4j"
+        # or by CVE ID like "CVE-2021-44228" from one input:
+        #   - if the term looks like a CVE ID, do a name~ filter (fast, indexed)
+        #   - otherwise, fetch a page and do a Python-side description scan
+        # This function handles the CVE-ID branch; keyword branch is below.
+        escaped = search.replace('"', '\\"')
+        term = search.strip().upper()
+        if term.startswith("CVE-") or term.replace("-", "").isdigit():
+            filter_parts.append(f'name~"{escaped}"')
+        else:
+            # Bare keyword: let gvmd's default text search handle it
+            # (matches all indexed text columns, including description).
+            filter_parts.append(f'"{escaped}"')
     filter_string = " ".join(filter_parts)
 
     with gmp_session() as gmp:

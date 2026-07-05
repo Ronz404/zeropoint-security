@@ -46,14 +46,17 @@ def create_tls_scan(payload: TlsScanCreate):
             comment=payload.comment or "Created by ZeroPoint TLS Quick Scan",
         )
 
-        # 3. Create scan task using Discovery config (includes SSL/TLS family)
+        # 3. Create scan task using Full and Fast config
+        # Discovery alone does not include the full SSL/TLS NVT family.
+        # Full and Fast covers SSL/TLS thoroughly (cert expiry, weak ciphers,
+        # protocol versions, hostname mismatch).
         scanner_id = _get_default_scanner_id()
         task_id = gvm_client.create_task(
             name=f"{payload.name} (TLS scan)",
             target_id=target_id,
-            config_id=DISCOVERY_CONFIG_UUID,
+            config_id=FULL_AND_FAST_CONFIG_UUID,
             scanner_id=scanner_id,
-            comment="TLS / SSL certificate verification scan",
+            comment="TLS / SSL certificate verification scan (Full and Fast config)",
         )
 
         return {
