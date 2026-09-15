@@ -13,6 +13,32 @@ def list_tasks():
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+# Helper endpoints for the UI when creating tasks
+# (must be above /{task_id} to avoid path conflicts)
+@router.get("/_helpers/scan-configs")
+def list_scan_configs():
+    return gvm_client.list_scan_configs()
+
+
+@router.get("/_helpers/scanners")
+def list_scanners():
+    return gvm_client.list_scanners()
+
+
+@router.get("/{task_id}")
+def get_task(task_id: str):
+    """Get a single task with its current status and progress."""
+    try:
+        task = gvm_client.get_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return task
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.post("", status_code=201)
 def create_task(payload: TaskCreate):
     try:
@@ -53,14 +79,3 @@ def delete_task(task_id: str):
         gvm_client.delete_task(task_id)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-# Helper endpoints for the UI when creating tasks
-@router.get("/_helpers/scan-configs")
-def list_scan_configs():
-    return gvm_client.list_scan_configs()
-
-
-@router.get("/_helpers/scanners")
-def list_scanners():
-    return gvm_client.list_scanners()

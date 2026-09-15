@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Plus, Play, Square, Trash2, ScanLine } from 'lucide-react';
 import { api } from '../lib/api';
 import Modal from '../components/Modal';
@@ -83,7 +84,11 @@ export default function Scans() {
             <tbody>
               {tasks.map((t) => (
                 <tr key={t.id}>
-                  <td>{t.name}</td>
+                  <td>
+                    <Link to={`/scans/${t.id}`} style={{ color: 'var(--accent)', textDecoration: 'none' }}>
+                      {t.name}
+                    </Link>
+                  </td>
                   <td>{statusBadge(t.status)}</td>
                   <td>{t.progress ?? 0}%</td>
                   <td>{t.severity ?? '—'}</td>

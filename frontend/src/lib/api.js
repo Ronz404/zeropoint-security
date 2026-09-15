@@ -29,6 +29,7 @@ export const api = {
 
   // Tasks
   listTasks: () => request('/tasks'),
+  getTask: (id) => request(`/tasks/${id}`),
   createTask: (data) => request('/tasks', { method: 'POST', body: JSON.stringify(data) }),
   startTask: (id) => request(`/tasks/${id}/start`, { method: 'POST' }),
   stopTask: (id) => request(`/tasks/${id}/stop`, { method: 'POST' }),
@@ -80,4 +81,6 @@ export const api = {
 
   // Quick Scans
   createTlsScan: (data) => request('/quickscans/tls-certificate', { method: 'POST', body: JSON.stringify(data) }),
+  createDiscoveryScan: (data) => request('/quickscans/discovery', { method: 'POST', body: JSON.stringify(data) }),
+  createVulnScan: (data) => request('/quickscans/vulnerability', { method: 'POST', body: JSON.stringify(data) }),
 };

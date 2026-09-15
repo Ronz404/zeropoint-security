@@ -155,6 +155,16 @@ def list_tasks() -> list[dict]:
         return [_xml_to_dict(t) for t in response.findall("task")]
 
 
+def get_task(task_id: str) -> dict:
+    """Return a single task with its current status, progress, and last report id."""
+    with gmp_session() as gmp:
+        response = gmp.get_task(task_id=task_id)
+        task_el = response.find("task")
+        if task_el is None:
+            return {}
+        return _xml_to_dict(task_el)
+
+
 def create_task(name: str, target_id: str, config_id: str,
                 scanner_id: str, schedule_id: str | None = None,
                 comment: str | None = None) -> str:

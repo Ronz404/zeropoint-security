@@ -15,6 +15,8 @@ import Trends from './pages/Trends';
 import Alerts from './pages/Alerts';
 import CveBrowser from './pages/CveBrowser';
 import TlsScan from './pages/TlsScan';
+import DiscoveryScan from './pages/DiscoveryScan';
+import ScanDetail from './pages/ScanDetail';
 
 export default function App() {
   return (
@@ -24,6 +26,7 @@ export default function App() {
         <Route path="/targets" element={<Targets />} />
         <Route path="/credentials" element={<Credentials />} />
         <Route path="/scans" element={<Scans />} />
+        <Route path="/scans/:id" element={<ScanDetail />} />
         <Route path="/schedules" element={<Schedules />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/reports/:id" element={<ReportDetail />} />
@@ -35,6 +38,7 @@ export default function App() {
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/cve-browser" element={<CveBrowser />} />
         <Route path="/tls-scan" element={<TlsScan />} />
+        <Route path="/discovery-scan" element={<DiscoveryScan />} />
       </Route>
     </Routes>
   );
