@@ -188,7 +188,8 @@ export default function ScanDetail() {
 
   useEffect(() => {
     fetchData();
-    intervalRef.current = setInterval(fetchData, 5000);
+    // Poll every 3 seconds for faster progress updates
+    intervalRef.current = setInterval(fetchData, 3000);
     return () => clearInterval(intervalRef.current);
   }, [id]);
 
@@ -199,14 +200,22 @@ export default function ScanDetail() {
     }
   }, [task?.status]);
 
-  const progress = task?.progress ?? 0;
+  // Parse progress - backend now returns integer, but guard against string/object
+  const rawProgress = task?.progress;
+  const progress = typeof rawProgress === 'number' ? rawProgress
+    : typeof rawProgress === 'string' ? parseInt(rawProgress, 10) || 0
+    : 0;
+  const hostProgress = task?.host_progress || {};
   const status = (task?.status || '').toLowerCase();
   const isRunning = status === 'running' || status === 'requested';
   const isDiscovery = (task?.name || '').toLowerCase().includes('discovery');
 
   const results = report?.results || [];
   const sorted = [...results].sort((a, b) => parseFloat(b.severity || 0) - parseFloat(a.severity || 0));
-  const filtered = showLogs ? sorted : sorted.filter((r) => parseFloat(r.severity || 0) > 0);
+  // If ALL findings are info-level (e.g. discovery scans), show them by default
+  const hasRealFindings = sorted.some((r) => parseFloat(r.severity || 0) > 0);
+  const effectiveShowLogs = showLogs || !hasRealFindings;
+  const filtered = effectiveShowLogs ? sorted : sorted.filter((r) => parseFloat(r.severity || 0) > 0);
 
   // Severity counts
   const counts = { critical: 0, high: 0, medium: 0, low: 0, log: 0 };
@@ -296,19 +305,42 @@ export default function ScanDetail() {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 500 }}>Progress</span>
           <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            {progress >= 0 ? `${progress}%` : 'Waiting...'}
+            {status === 'done' ? '100%' : progress > 0 ? `${progress}%` : isRunning ? 'Scanning...' : progress === 0 ? '0%' : 'Waiting...'}
             {isRunning && <RefreshCw size={12} style={{ marginLeft: 6, animation: 'spin 2s linear infinite' }} />}
           </span>
         </div>
         <div style={{ height: 8, background: 'var(--bg)', borderRadius: 4, overflow: 'hidden' }}>
           <div style={{
             height: '100%',
-            width: `${Math.max(progress, 0)}%`,
+            width: status === 'done' ? '100%' : `${Math.max(progress, isRunning && progress <= 0 ? 3 : 0)}%`,
             background: isRunning ? 'var(--accent)' : (status === 'done' ? 'var(--accent)' : 'var(--text-muted)'),
             borderRadius: 4,
             transition: 'width 0.5s ease',
+            ...(isRunning && progress <= 0 ? { animation: 'pulse-bar 1.5s ease-in-out infinite' } : {}),
           }} />
         </div>
+        {/* Per-host progress when scanning */}
+        {isRunning && Object.keys(hostProgress).length > 0 && (
+          <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {Object.entries(hostProgress).map(([host, pct]) => (
+              <div key={host} style={{
+                fontSize: 11, fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: 6,
+                background: 'var(--bg)', padding: '4px 10px', borderRadius: 4,
+              }}>
+                <span>{host}</span>
+                <div style={{
+                  width: 60, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden',
+                }}>
+                  <div style={{
+                    height: '100%', width: `${Math.max(pct, 0)}%`,
+                    background: 'var(--accent)', borderRadius: 2,
+                  }} />
+                </div>
+                <span style={{ color: 'var(--text-muted)' }}>{pct}%</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Summary cards */}
@@ -392,12 +424,14 @@ export default function ScanDetail() {
             padding: '12px 16px', borderBottom: '1px solid var(--border)',
           }}>
             <span style={{ fontSize: 13, fontWeight: 500 }}>
-              Findings ({filtered.length}{!showLogs && counts.log > 0 ? ` + ${counts.log} info` : ''})
+              Findings ({filtered.length}{!effectiveShowLogs && counts.log > 0 ? ` + ${counts.log} info` : ''})
             </span>
-            <label style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <input type="checkbox" checked={showLogs} onChange={(e) => setShowLogs(e.target.checked)} />
-              Show info-level
-            </label>
+            {hasRealFindings && (
+              <label style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input type="checkbox" checked={showLogs} onChange={(e) => setShowLogs(e.target.checked)} />
+                Show info-level
+              </label>
+            )}
           </div>
 
           <div className="table-wrapper" style={{ margin: 0 }}>
@@ -460,6 +494,10 @@ export default function ScanDetail() {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @keyframes pulse-bar {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 1; }
         }
       `}</style>
     </div>

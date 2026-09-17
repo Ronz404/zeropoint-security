@@ -9,49 +9,80 @@ const TEMPLATE_META = {
     title: 'Host Discovery',
     configType: 'discovery',
     defaultDesc: 'Discover live hosts and open ports on the network.',
+    targetHint: 'Example: 192.168.1.0/24, 10.0.0.1-10.0.0.50',
   },
   'ping-discovery': {
     title: 'Ping-Only Discovery',
     configType: 'discovery',
     defaultDesc: 'Discover live hosts with minimal network traffic.',
+    targetHint: 'Example: 192.168.1.0/24, 10.0.0.1-10.0.0.50',
   },
   'basic-network': {
     title: 'Basic Network Scan',
     configType: 'vulnerability',
     defaultDesc: 'Full system vulnerability scan suitable for any host.',
+    targetHint: 'Example: 192.168.1.1-192.168.1.5, 192.168.2.0/24',
   },
   'advanced-scan': {
     title: 'Advanced Scan',
     configType: 'vulnerability',
     defaultDesc: 'Configure a scan without using any recommendations.',
+    targetHint: 'Example: 192.168.1.1, 10.0.0.0/24, server.local',
   },
   'tls-certificate': {
     title: 'TLS Certificate Scan',
     configType: 'tls',
     defaultDesc: 'Verify TLS/SSL certificates for expiration and vulnerabilities.',
+    targetHint: 'Example: example.com, badssl.com, 192.168.1.1',
   },
 };
 
-const SECTIONS = [
-  {
-    group: 'BASIC', items: [
-      { id: 'general', label: 'General' },
-      { id: 'schedule', label: 'Schedule' },
-      { id: 'notifications', label: 'Notifications' },
-    ],
-  },
-  { group: 'DISCOVERY', items: [{ id: 'discovery', label: 'Discovery' }] },
-  { group: 'ASSESSMENT', items: [{ id: 'assessment', label: 'Assessment' }] },
-  { group: 'REPORT', items: [{ id: 'report', label: 'Report' }] },
-  { group: 'ADVANCED', items: [{ id: 'advanced', label: 'Advanced' }] },
-];
+/* Sections per template - each template only shows relevant settings */
+function getSections(template) {
+  const basic = [
+    { id: 'general', label: 'General' },
+    { id: 'schedule', label: 'Schedule' },
+    { id: 'notifications', label: 'Notifications' },
+  ];
+
+  if (template === 'tls-certificate') {
+    return [
+      { group: 'BASIC', items: basic },
+      { group: 'TLS', items: [{ id: 'tls', label: 'TLS Settings' }] },
+      { group: 'REPORT', items: [{ id: 'report', label: 'Report' }] },
+    ];
+  }
+  if (template === 'ping-discovery') {
+    return [
+      { group: 'BASIC', items: basic },
+      { group: 'DISCOVERY', items: [{ id: 'ping', label: 'Ping Settings' }] },
+      { group: 'ADVANCED', items: [{ id: 'advanced', label: 'Advanced' }] },
+    ];
+  }
+  if (template === 'host-discovery') {
+    return [
+      { group: 'BASIC', items: basic },
+      { group: 'DISCOVERY', items: [{ id: 'discovery', label: 'Host Discovery' }] },
+      { group: 'ADVANCED', items: [{ id: 'advanced', label: 'Advanced' }] },
+    ];
+  }
+  // basic-network, advanced-scan (vulnerability templates)
+  return [
+    { group: 'BASIC', items: basic },
+    { group: 'DISCOVERY', items: [{ id: 'discovery', label: 'Discovery' }] },
+    { group: 'ASSESSMENT', items: [{ id: 'assessment', label: 'Assessment' }] },
+    { group: 'REPORT', items: [{ id: 'report', label: 'Report' }] },
+    { group: 'ADVANCED', items: [{ id: 'advanced', label: 'Advanced' }] },
+  ];
+}
 
 export default function ScanForm() {
   const { template } = useParams();
   const navigate = useNavigate();
   const meta = TEMPLATE_META[template] || TEMPLATE_META['basic-network'];
+  const sections = getSections(template);
 
-  const [activeTab, setActiveTab] = useState('settings'); // settings | credentials
+  const [activeTab, setActiveTab] = useState('settings');
   const [activeSection, setActiveSection] = useState('general');
   const [expandedGroups, setExpandedGroups] = useState({ BASIC: true });
   const [submitting, setSubmitting] = useState(false);
@@ -75,6 +106,8 @@ export default function ScanForm() {
     maxHosts: '30',
     maxChecks: '4',
     networkTimeout: '5',
+    // TLS
+    tlsPorts: '443, 8443, 993, 995, 465, 587, 636',
     // Credentials
     sshEnabled: false,
     sshUser: '',
@@ -102,6 +135,41 @@ export default function ScanForm() {
     setExpandedGroups((prev) => ({ ...prev, [group]: !prev[group] }));
   }
 
+  function buildCredentials() {
+    const creds = {};
+    if (form.sshEnabled && form.sshUser && form.sshPassword) {
+      creds.ssh_user = form.sshUser;
+      creds.ssh_password = form.sshPassword;
+      creds.ssh_auth_method = form.sshAuthMethod;
+    }
+    if (form.windowsEnabled && form.windowsUser && form.windowsPassword) {
+      creds.windows_user = form.windowsUser;
+      creds.windows_password = form.windowsPassword;
+      creds.windows_domain = form.windowsDomain || null;
+    }
+    return Object.keys(creds).length > 0 ? creds : null;
+  }
+
+  function buildOptions() {
+    const opts = {};
+    if (form.scheduleEnabled && form.schedule_id) {
+      opts.schedule_id = form.schedule_id;
+    }
+    if (form.emailRecipients && form.emailRecipients.trim()) {
+      opts.email_recipients = form.emailRecipients.trim();
+    }
+    if (form.discoveryType) {
+      opts.port_scan_type = form.discoveryType;
+    }
+    if (form.assessmentType) {
+      opts.assessment_type = form.assessmentType;
+    }
+    opts.max_hosts = parseInt(form.maxHosts) || 30;
+    opts.max_checks = parseInt(form.maxChecks) || 4;
+    opts.network_timeout = parseInt(form.networkTimeout) || 5;
+    return Object.keys(opts).length > 0 ? opts : null;
+  }
+
   async function handleSave() {
     if (!form.name || !form.targets) {
       setError('Name and Targets are required.');
@@ -114,62 +182,33 @@ export default function ScanForm() {
 
     try {
       let result;
+      const credentials = buildCredentials();
+      const options = buildOptions();
 
       if (meta.configType === 'discovery') {
-        // Use discovery quick scan endpoint
         result = await api.createDiscoveryScan({
           name: form.name,
           hosts: form.targets,
           comment: form.description || null,
+          credentials,
+          options,
         });
       } else if (meta.configType === 'tls') {
-        // Use TLS quick scan endpoint
         result = await api.createTlsScan({
           name: form.name,
           hosts: form.targets,
           comment: form.description || null,
+          credentials,
+          options,
+          tls_ports: form.tlsPorts || null,
         });
       } else {
-        // Vulnerability scan - create target, then task
-        const targetRes = await api.createTarget({
-          name: `${form.name} (target)`,
-          hosts: form.targets,
-          comment: form.description || `Created from ${meta.title} template`,
-        });
-
-        const configs = await api.listScanConfigs();
-        const scanners = await api.listScanners();
-
-        // Find Full and Fast config
-        const config = configs.find((c) =>
-          c.name?.toLowerCase().includes('full and fast')
-        ) || configs[0];
-
-        // Find OpenVAS Default scanner
-        const scanner = scanners.find((s) =>
-          s.name === 'OpenVAS Default'
-        ) || scanners[0];
-
-        if (!config || !scanner) throw new Error('No scan config or scanner available');
-
-        const taskPayload = {
+        result = await api.createVulnScan({
+          host: form.targets,
           name: form.name,
-          target_id: targetRes.id || targetRes.target_id,
-          config_id: config.id,
-          scanner_id: scanner.id,
-        };
-
-        if (form.scheduleEnabled && form.schedule_id) {
-          taskPayload.schedule_id = form.schedule_id;
-        }
-
-        const taskRes = await api.createTask(taskPayload);
-        const taskId = taskRes.id || taskRes.task_id;
-
-        // Auto-start
-        await api.startTask(taskId);
-
-        result = { task_id: taskId };
+          credentials,
+          options,
+        });
       }
 
       const taskId = result.task_id || result.id;
@@ -222,7 +261,7 @@ export default function ScanForm() {
                 value={form.targets}
                 onChange={(e) => update('targets', e.target.value)}
                 rows={4}
-                placeholder="Example: 192.168.1.1-192.168.1.5, 192.168.2.0/24, test.com"
+                placeholder={meta.targetHint}
                 style={{ width: '100%', resize: 'vertical' }}
               />
               <span className="required-tag" style={{
@@ -299,6 +338,10 @@ export default function ScanForm() {
             style={{ resize: 'vertical' }}
           />
         </div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.6 }}>
+          An email alert will be created for each recipient. Notifications fire when the scan
+          completes with findings at severity 4.0 (medium) or above.
+        </div>
       </div>
     );
   }
@@ -306,7 +349,7 @@ export default function ScanForm() {
   function renderDiscovery() {
     return (
       <div>
-        <h3>Discovery Settings</h3>
+        <h3>{template === 'host-discovery' ? 'Host Discovery Settings' : 'Discovery Settings'}</h3>
         <div className="form-row">
           <label>Scan Type</label>
           <select
@@ -322,12 +365,14 @@ export default function ScanForm() {
         <div style={{ background: 'var(--bg)', padding: 16, borderRadius: 4, marginTop: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>General Settings:</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-            Always test the local Nessus host<br />
-            Use fast network discovery
+            Use fast network discovery<br />
+            Test local scanner host connectivity
           </div>
           <div style={{ fontSize: 13, fontWeight: 600, marginTop: 16, marginBottom: 8 }}>Port Scanner Settings:</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-            Scan common ports<br />
+            {form.discoveryType === 'port-all'
+              ? 'Scan all 65,535 TCP ports'
+              : 'Scan common IANA-assigned TCP ports (~5,000)'}<br />
             Use netstat if credentials are provided<br />
             Use SYN scanner if necessary
           </div>
@@ -336,6 +381,76 @@ export default function ScanForm() {
             TCP<br />
             ARP<br />
             ICMP (2 retries)
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderPing() {
+    return (
+      <div>
+        <h3>Ping Settings</h3>
+        <div style={{ background: 'var(--bg)', padding: 16, borderRadius: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Ping Methods:</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
+            ARP ping (local network, most reliable)<br />
+            ICMP echo request (2 retries)<br />
+            TCP ping on common ports (80, 443, 22)
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 16, marginBottom: 8 }}>Behavior:</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
+            Minimal port scanning (host alive detection only)<br />
+            Fast network discovery enabled<br />
+            No vulnerability assessment performed
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 16, marginBottom: 8 }}>Output:</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
+            Alive / unreachable host status<br />
+            IP and MAC address mapping<br />
+            Basic OS fingerprinting (when possible)
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderTls() {
+    return (
+      <div>
+        <h3>TLS / SSL Settings</h3>
+        <div className="form-row">
+          <label>Ports to Check</label>
+          <input
+            value={form.tlsPorts}
+            onChange={(e) => update('tlsPorts', e.target.value)}
+            placeholder="443, 8443, 993, 995, 465, 587, 636"
+            style={{ maxWidth: 400 }}
+          />
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+          Comma-separated TCP ports. Default covers HTTPS, IMAPS, POP3S, SMTPS, and LDAPS.
+        </div>
+
+        <div style={{ background: 'var(--bg)', padding: 16, borderRadius: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Certificate Checks:</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
+            Certificate expiration date verification<br />
+            Certificate chain trust validation<br />
+            Hostname mismatch detection<br />
+            Self-signed certificate detection
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 16, marginBottom: 8 }}>Protocol Testing:</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
+            SSLv2 / SSLv3 detection (insecure)<br />
+            TLS 1.0 / 1.1 detection (deprecated)<br />
+            TLS 1.2 / 1.3 support verification
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 16, marginBottom: 8 }}>Cipher Analysis:</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
+            Weak cipher suite detection (RC4, DES, 3DES)<br />
+            Perfect Forward Secrecy (PFS) verification<br />
+            Key length validation (RSA &gt;= 2048, ECC &gt;= 256)
           </div>
         </div>
       </div>
@@ -361,14 +476,30 @@ export default function ScanForm() {
         </div>
 
         <div style={{ background: 'var(--bg)', padding: 16, borderRadius: 4, marginTop: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>General Settings:</div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+            {form.assessmentType === 'all-web-complex' ? 'Full and Deep Scan:' : 'General Settings:'}
+          </div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-            Avoid potential false alarms<br />
-            Disable CGI scanning
+            {form.assessmentType === 'all-web-complex' ? (
+              <>
+                Thorough scanning with all NVT families enabled<br />
+                Deep web application analysis<br />
+                Slower but more comprehensive detection
+              </>
+            ) : (
+              <>
+                Avoid potential false alarms<br />
+                {form.assessmentType === 'default' ? 'Disable CGI scanning' : 'Enable CGI scanning'}
+              </>
+            )}
           </div>
           <div style={{ fontSize: 13, fontWeight: 600, marginTop: 16, marginBottom: 8 }}>Web Applications:</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-            Disable web application scanning
+            {form.assessmentType === 'default'
+              ? 'Disable web application scanning'
+              : form.assessmentType === 'all-web-complex'
+                ? 'Full web application scanning with complex methods'
+                : 'Scan for known web application vulnerabilities'}
           </div>
         </div>
       </div>
@@ -381,7 +512,7 @@ export default function ScanForm() {
         <h3>Report Settings</h3>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.8 }}>
           Reports are generated automatically when the scan completes.
-          You can export reports in PDF or XML format from the Reports page.
+          You can export reports in PDF, HTML, CSV, or XML format from the Reports page.
         </div>
       </div>
     );
@@ -392,16 +523,50 @@ export default function ScanForm() {
       <div>
         <h3>Advanced Settings</h3>
         <div className="form-row">
-          <label>Scan Type</label>
-          <select defaultValue="default">
-            <option value="default">Default</option>
-            <option value="low-bandwidth">Scan low bandwidth links</option>
-            <option value="custom">Custom</option>
-          </select>
+          <label>Max Hosts</label>
+          <input
+            type="number"
+            value={form.maxHosts}
+            onChange={(e) => update('maxHosts', e.target.value)}
+            min="1"
+            max="100"
+            style={{ maxWidth: 100 }}
+          />
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
+            simultaneous hosts
+          </span>
+        </div>
+        <div className="form-row">
+          <label>Max Checks</label>
+          <input
+            type="number"
+            value={form.maxChecks}
+            onChange={(e) => update('maxChecks', e.target.value)}
+            min="1"
+            max="20"
+            style={{ maxWidth: 100 }}
+          />
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
+            checks per host
+          </span>
+        </div>
+        <div className="form-row">
+          <label>Network Timeout</label>
+          <input
+            type="number"
+            value={form.networkTimeout}
+            onChange={(e) => update('networkTimeout', e.target.value)}
+            min="1"
+            max="30"
+            style={{ maxWidth: 100 }}
+          />
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
+            seconds
+          </span>
         </div>
 
-        <div style={{ background: 'var(--bg)', padding: 16, borderRadius: 4, marginTop: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Performance options:</div>
+        <div style={{ background: 'var(--bg)', padding: 16, borderRadius: 4, marginTop: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Performance summary:</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
             {form.maxHosts} simultaneous hosts (max)<br />
             {form.maxChecks} simultaneous checks per host (max)<br />
@@ -571,6 +736,8 @@ export default function ScanForm() {
     schedule: renderSchedule,
     notifications: renderNotifications,
     discovery: renderDiscovery,
+    ping: renderPing,
+    tls: renderTls,
     assessment: renderAssessment,
     report: renderReport,
     advanced: renderAdvanced,
@@ -616,7 +783,7 @@ export default function ScanForm() {
           <>
             {/* Sidebar */}
             <div className="scanform-sidebar">
-              {SECTIONS.map(({ group, items }) => (
+              {sections.map(({ group, items }) => (
                 <div className="scanform-section-group" key={group}>
                   <div
                     className="scanform-section-title"

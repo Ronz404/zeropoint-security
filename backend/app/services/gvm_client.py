@@ -73,16 +73,23 @@ def _default_port_list_id(gmp) -> str:
 
 
 def create_target(name: str, hosts: str, port_list_id: str | None = None,
-                  comment: str | None = None) -> str:
+                  comment: str | None = None,
+                  ssh_credential_id: str | None = None,
+                  smb_credential_id: str | None = None) -> str:
     with gmp_session() as gmp:
         if not port_list_id:
             port_list_id = _default_port_list_id(gmp)
-        response = gmp.create_target(
+        kwargs = dict(
             name=name,
             hosts=[h.strip() for h in hosts.split(",") if h.strip()],
             port_list_id=port_list_id,
             comment=comment,
         )
+        if ssh_credential_id:
+            kwargs["ssh_credential_id"] = ssh_credential_id
+        if smb_credential_id:
+            kwargs["smb_credential_id"] = smb_credential_id
+        response = gmp.create_target(**kwargs)
         return response.get("id", "")
 
 
@@ -162,17 +169,56 @@ def get_task(task_id: str) -> dict:
         task_el = response.find("task")
         if task_el is None:
             return {}
-        return _xml_to_dict(task_el)
+        result = _xml_to_dict(task_el)
+
+        # Explicitly extract progress as an integer.
+        # GMP may return <progress>50</progress> (simple text) or
+        # <progress><host_progress>...</host_progress></progress> (with children).
+        # _xml_to_dict loses the direct text when children exist.
+        progress_el = task_el.find("progress")
+        if progress_el is not None:
+            # Direct text on <progress> is the overall percentage
+            raw = (progress_el.text or "").strip()
+            try:
+                result["progress"] = int(raw) if raw else -1
+            except ValueError:
+                result["progress"] = -1
+            # Also collect per-host progress for detailed display
+            host_prog = {}
+            for hp in progress_el.findall("host_progress"):
+                host_el = hp.find("host")
+                if host_el is not None and host_el.text:
+                    # The progress value is in host_el.tail (text after </host>)
+                    pval = (host_el.tail or "").strip()
+                    try:
+                        host_prog[host_el.text.strip()] = int(pval)
+                    except ValueError:
+                        host_prog[host_el.text.strip()] = 0
+            if host_prog:
+                result["host_progress"] = host_prog
+        else:
+            result["progress"] = -1
+
+        return result
 
 
 def create_task(name: str, target_id: str, config_id: str,
                 scanner_id: str, schedule_id: str | None = None,
-                comment: str | None = None) -> str:
+                comment: str | None = None,
+                alert_ids: list[str] | None = None,
+                preferences: dict | None = None) -> str:
     with gmp_session() as gmp:
-        response = gmp.create_task(
+        kwargs = dict(
             name=name, config_id=config_id, target_id=target_id,
-            scanner_id=scanner_id, schedule_id=schedule_id, comment=comment,
+            scanner_id=scanner_id, comment=comment,
         )
+        if schedule_id:
+            kwargs["schedule_id"] = schedule_id
+        if alert_ids:
+            kwargs["alert_ids"] = alert_ids
+        if preferences:
+            kwargs["preferences"] = preferences
+        response = gmp.create_task(**kwargs)
         return response.get("id", "")
 
 
@@ -1089,9 +1135,15 @@ def generate_remediation(finding: dict) -> dict:
 TLS_PORT_LIST_DEFAULT = "443,8443,993,995,465,587,636"
 
 
-def get_or_create_tls_port_list() -> str:
-    """Find or create a port list containing typical TLS-protected ports."""
-    name = "ZeroPoint TLS ports"
+def get_or_create_tls_port_list(custom_ports: str | None = None) -> str:
+    """Find or create a port list containing TLS-protected ports.
+    If custom_ports is provided (e.g. '443,8443,993'), create a uniquely
+    named port list for that combination. Otherwise use the default."""
+    ports = custom_ports or TLS_PORT_LIST_DEFAULT
+    if ports == TLS_PORT_LIST_DEFAULT:
+        name = "ZeroPoint TLS ports"
+    else:
+        name = f"ZeroPoint TLS ({ports[:30]})"
     with gmp_session() as gmp:
         response = gmp.get_port_lists()
         for pl in response.findall("port_list"):
@@ -1099,7 +1151,36 @@ def get_or_create_tls_port_list() -> str:
                 return pl.get("id")
         new = gmp.create_port_list(
             name=name,
-            port_range=f"T:{TLS_PORT_LIST_DEFAULT}",
+            port_range=f"T:{ports}",
             comment="Auto-created by ZeroPoint Security for TLS certificate scans",
         )
         return new.get("id", "")
+
+
+def get_or_create_all_tcp_port_list() -> str:
+    """Find or create a port list with all 65535 TCP ports."""
+    name = "ZeroPoint All TCP"
+    with gmp_session() as gmp:
+        response = gmp.get_port_lists()
+        for pl in response.findall("port_list"):
+            if pl.findtext("name") == name:
+                return pl.get("id")
+        new = gmp.create_port_list(
+            name=name,
+            port_range="T:1-65535",
+            comment="All TCP ports (1-65535) for full port scanning",
+        )
+        return new.get("id", "")
+
+
+def find_scan_config(pattern: str) -> str | None:
+    """Find a scan config whose name contains the given pattern (case-insensitive).
+    Returns the config ID or None."""
+    pattern_lower = pattern.lower()
+    with gmp_session() as gmp:
+        response = gmp.get_scan_configs()
+        for c in response.findall("config"):
+            name = c.findtext("name") or ""
+            if pattern_lower in name.lower():
+                return c.get("id")
+    return None
