@@ -1,164 +1,195 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, Play, Square, Trash2, ScanLine } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, Play, X, Search, FolderClosed, CheckCircle, XCircle,
+         Clock, ScanLine, Trash2, ChevronDown } from 'lucide-react';
 import { api } from '../lib/api';
-import Modal from '../components/Modal';
 
-function statusBadge(status) {
+/* Map scan config names to user-friendly types */
+function scanType(task) {
+  const cfg = (task.config?.name || task.scan_config?.name || '').toLowerCase();
+  if (cfg.includes('discovery')) return 'Host Discovery';
+  if (cfg.includes('full and fast')) return 'Vulnerability';
+  if (cfg.includes('tls') || cfg.includes('ssl')) return 'TLS / SSL';
+  if (cfg.includes('web')) return 'Web Application';
+  return 'Vulnerability';
+}
+
+function statusIcon(status) {
   const s = (status || '').toLowerCase();
-  if (s === 'running' || s === 'requested') return <span className="badge badge-running">{status}</span>;
-  if (s === 'done' || s === 'stopped') return <span className="badge badge-done">{status}</span>;
-  if (s === 'new') return <span className="badge badge-new">{status}</span>;
-  return <span className="badge badge-stopped">{status || '—'}</span>;
+  if (s === 'done') return <CheckCircle size={16} style={{ color: 'var(--accent)' }} />;
+  if (s === 'running' || s === 'requested') return (
+    <span className="scan-status-icon">
+      <span style={{
+        display: 'inline-block', width: 14, height: 14, borderRadius: '50%',
+        border: '2px solid var(--accent)', borderTopColor: 'transparent',
+        animation: 'spin 1s linear infinite',
+      }} />
+    </span>
+  );
+  if (s === 'stopped') return <XCircle size={16} style={{ color: 'var(--critical)' }} />;
+  if (s === 'new') return <Clock size={16} style={{ color: 'var(--text-muted)' }} />;
+  return <Clock size={16} style={{ color: 'var(--text-muted)' }} />;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d)) return dateStr;
+    const months = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    const hour = d.getHours();
+    const minute = d.getMinutes().toString().padStart(2, '0');
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const h12 = hour % 12 || 12;
+    return `${months[d.getMonth()]} ${d.getDate()} at ${h12}:${minute} ${ampm}`;
+  } catch {
+    return dateStr;
+  }
 }
 
 export default function Scans() {
   const [tasks, setTasks] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [targets, setTargets] = useState([]);
-  const [configs, setConfigs] = useState([]);
-  const [scanners, setScanners] = useState([]);
-  const [schedules, setSchedules] = useState([]);
-  const [form, setForm] = useState({
-    name: '', target_id: '', config_id: '', scanner_id: '', schedule_id: '',
-  });
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   async function reload() {
-    setTasks(await api.listTasks().catch(() => []));
-  }
-
-  async function loadFormData() {
-    const [t, c, s, sched] = await Promise.all([
-      api.listTargets().catch(() => []),
-      api.listScanConfigs().catch(() => []),
-      api.listScanners().catch(() => []),
-      api.listSchedules().catch(() => []),
-    ]);
-    setTargets(t); setConfigs(c); setScanners(s); setSchedules(sched);
+    try {
+      const t = await api.listTasks();
+      setTasks(t || []);
+    } catch {
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { reload(); }, []);
 
-  async function openModal() {
-    await loadFormData();
-    setOpen(true);
-  }
-
-  async function submit(e) {
-    e.preventDefault();
-    const payload = { ...form };
-    if (!payload.schedule_id) delete payload.schedule_id;
-    await api.createTask(payload);
-    setOpen(false);
-    setForm({ name: '', target_id: '', config_id: '', scanner_id: '', schedule_id: '' });
-    reload();
-  }
+  const filtered = tasks.filter((t) =>
+    (t.name || '').toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <div>
-      <div className="page-header">
-        <h2>Scans</h2>
-        <button className="btn" onClick={openModal}>
-          <Plus size={14} /> New scan
-        </button>
+    <div className="scan-layout">
+      {/* Folder sidebar */}
+      <div className="scan-folders">
+        <div className="folder-title">Folders</div>
+        <div className="folder-item active">
+          <FolderClosed size={14} />
+          <span>My Scans</span>
+          <span className="folder-count">{tasks.length}</span>
+        </div>
       </div>
 
-      <div className="table-wrapper">
-        {tasks.length === 0 ? (
+      {/* Main content */}
+      <div className="scan-main">
+        {/* Top bar */}
+        <div className="scan-topbar">
+          <h2>My Scans</h2>
+          <div className="scan-topbar-actions">
+            <button className="btn-nessus" onClick={() => navigate('/scans/new')}>
+              <Plus size={14} /> New Scan
+            </button>
+          </div>
+        </div>
+
+        {/* Search bar */}
+        <div className="scan-search-bar">
+          <div style={{ position: 'relative' }}>
+            <Search size={14} style={{
+              position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
+              color: 'var(--text-muted)', pointerEvents: 'none',
+            }} />
+            <input
+              placeholder="Search Scans"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ paddingLeft: 30 }}
+            />
+          </div>
+          <span className="scan-count">{filtered.length} Scan{filtered.length !== 1 ? 's' : ''}</span>
+        </div>
+
+        {/* Scan table */}
+        {loading ? (
+          <div className="empty" style={{ padding: 60 }}>Loading scans...</div>
+        ) : filtered.length === 0 ? (
           <div className="empty">
             <ScanLine size={32} />
-            <div>No scans yet. Create a target first, then schedule a scan.</div>
+            <div>{search ? 'No scans match your search.' : 'No scans yet. Click + New Scan to get started.'}</div>
           </div>
         ) : (
-          <table className="table">
+          <table className="scan-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Progress</th>
-                <th>Severity</th>
-                <th>Last run</th>
-                <th style={{ width: 140 }}>Actions</th>
+                <th style={{ width: 36 }}></th>
+                <th className="sortable">Name</th>
+                <th>Scan Type</th>
+                <th>Schedule</th>
+                <th></th>
+                <th className="sortable">
+                  Last Scanned <ChevronDown size={10} style={{ verticalAlign: 'middle' }} />
+                </th>
+                <th style={{ width: 80 }}></th>
               </tr>
             </thead>
             <tbody>
-              {tasks.map((t) => (
-                <tr key={t.id}>
-                  <td>
-                    <Link to={`/scans/${t.id}`} style={{ color: 'var(--accent)', textDecoration: 'none' }}>
-                      {t.name}
-                    </Link>
-                  </td>
-                  <td>{statusBadge(t.status)}</td>
-                  <td>{t.progress ?? 0}%</td>
-                  <td>{t.severity ?? '—'}</td>
-                  <td style={{ color: 'var(--text-muted)' }}>
-                    {t.last_report?.report?.timestamp || '—'}
-                  </td>
-                  <td>
-                    <div className="flex">
-                      <button className="btn-icon" title="Start" onClick={() => api.startTask(t.id).then(reload)}>
-                        <Play size={14} />
-                      </button>
-                      <button className="btn-icon" title="Stop" onClick={() => api.stopTask(t.id).then(reload)}>
-                        <Square size={14} />
-                      </button>
-                      <button className="btn-icon" title="Delete" onClick={async () => {
-                        if (confirm('Delete this scan?')) { await api.deleteTask(t.id); reload(); }
-                      }}>
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((t) => {
+                const lastRun = t.last_report?.report?.timestamp || '';
+                return (
+                  <tr key={t.id}>
+                    <td>
+                      <input type="checkbox" style={{ accentColor: 'var(--accent)' }} />
+                    </td>
+                    <td>
+                      <Link to={`/scans/${t.id}`} className="scan-name">
+                        {t.name}
+                      </Link>
+                    </td>
+                    <td>
+                      <span className="scan-type-badge">{scanType(t)}</span>
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                      {t.schedule?.name || 'On Demand'}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {statusIcon(t.status)}
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                      {formatDate(lastRun)}
+                    </td>
+                    <td>
+                      <div className="scan-actions">
+                        <button title="Start scan" onClick={(e) => {
+                          e.stopPropagation();
+                          api.startTask(t.id).then(reload);
+                        }}>
+                          <Play size={14} />
+                        </button>
+                        <button title="Delete scan" onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm('Delete this scan?')) api.deleteTask(t.id).then(reload);
+                        }}>
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
 
-      {open && (
-        <Modal title="New scan" onClose={() => setOpen(false)}>
-          <form onSubmit={submit}>
-            <div className="form-group">
-              <label>Name</label>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-            </div>
-            <div className="form-group">
-              <label>Target</label>
-              <select value={form.target_id} onChange={(e) => setForm({ ...form, target_id: e.target.value })} required>
-                <option value="">— select —</option>
-                {targets.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Scan config</label>
-              <select value={form.config_id} onChange={(e) => setForm({ ...form, config_id: e.target.value })} required>
-                <option value="">— select —</option>
-                {configs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Scanner</label>
-              <select value={form.scanner_id} onChange={(e) => setForm({ ...form, scanner_id: e.target.value })} required>
-                <option value="">— select —</option>
-                {scanners.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Schedule (optional)</label>
-              <select value={form.schedule_id} onChange={(e) => setForm({ ...form, schedule_id: e.target.value })}>
-                <option value="">Run on demand</option>
-                {schedules.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="btn-secondary btn" onClick={() => setOpen(false)}>Cancel</button>
-              <button type="submit" className="btn">Create</button>
-            </div>
-          </form>
-        </Modal>
-      )}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
