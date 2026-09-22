@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     ollama_url: str = "http://ollama:11434"
     ollama_model: str = "llama3.2:3b"
     ollama_enabled: bool = True
-    ollama_timeout_seconds: int = 120
+    ollama_timeout_seconds: int = 180
 
     class Config:
         env_file = ".env"

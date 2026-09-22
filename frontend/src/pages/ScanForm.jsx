@@ -26,14 +26,8 @@ const TEMPLATE_META = {
   'advanced-scan': {
     title: 'Advanced Scan',
     configType: 'vulnerability',
-    defaultDesc: 'Configure a scan without using any recommendations.',
+    defaultDesc: 'Deep scan with all ports, full web app testing, and aggressive settings.',
     targetHint: 'Example: 192.168.1.1, 10.0.0.0/24, server.local',
-  },
-  'tls-certificate': {
-    title: 'TLS Certificate Scan',
-    configType: 'tls',
-    defaultDesc: 'Verify TLS/SSL certificates for expiration and vulnerabilities.',
-    targetHint: 'Example: example.com, badssl.com, 192.168.1.1',
   },
 };
 
@@ -45,13 +39,6 @@ function getSections(template) {
     { id: 'notifications', label: 'Notifications' },
   ];
 
-  if (template === 'tls-certificate') {
-    return [
-      { group: 'BASIC', items: basic },
-      { group: 'TLS', items: [{ id: 'tls', label: 'TLS Settings' }] },
-      { group: 'REPORT', items: [{ id: 'report', label: 'Report' }] },
-    ];
-  }
   if (template === 'ping-discovery') {
     return [
       { group: 'BASIC', items: basic },
@@ -99,15 +86,14 @@ export default function ScanForm() {
     // Notifications
     emailRecipients: '',
     // Discovery
-    discoveryType: 'port-common',
+    discoveryType: template === 'ping-discovery' ? 'ping-only'
+      : template === 'advanced-scan' ? 'port-all' : 'port-common',
     // Assessment
-    assessmentType: 'default',
+    assessmentType: template === 'advanced-scan' ? 'all-web-complex' : 'default',
     // Advanced
-    maxHosts: '30',
-    maxChecks: '4',
-    networkTimeout: '5',
-    // TLS
-    tlsPorts: '443, 8443, 993, 995, 465, 587, 636',
+    maxHosts: template === 'advanced-scan' ? '50' : '30',
+    maxChecks: template === 'advanced-scan' ? '8' : '4',
+    networkTimeout: template === 'advanced-scan' ? '10' : '5',
     // Credentials
     sshEnabled: false,
     sshUser: '',
@@ -192,15 +178,7 @@ export default function ScanForm() {
           comment: form.description || null,
           credentials,
           options,
-        });
-      } else if (meta.configType === 'tls') {
-        result = await api.createTlsScan({
-          name: form.name,
-          hosts: form.targets,
-          comment: form.description || null,
-          credentials,
-          options,
-          tls_ports: form.tlsPorts || null,
+          template: template,
         });
       } else {
         result = await api.createVulnScan({
@@ -208,6 +186,7 @@ export default function ScanForm() {
           name: form.name,
           credentials,
           options,
+          template: template,
         });
       }
 
@@ -409,48 +388,6 @@ export default function ScanForm() {
             Alive / unreachable host status<br />
             IP and MAC address mapping<br />
             Basic OS fingerprinting (when possible)
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function renderTls() {
-    return (
-      <div>
-        <h3>TLS / SSL Settings</h3>
-        <div className="form-row">
-          <label>Ports to Check</label>
-          <input
-            value={form.tlsPorts}
-            onChange={(e) => update('tlsPorts', e.target.value)}
-            placeholder="443, 8443, 993, 995, 465, 587, 636"
-            style={{ maxWidth: 400 }}
-          />
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
-          Comma-separated TCP ports. Default covers HTTPS, IMAPS, POP3S, SMTPS, and LDAPS.
-        </div>
-
-        <div style={{ background: 'var(--bg)', padding: 16, borderRadius: 4 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Certificate Checks:</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-            Certificate expiration date verification<br />
-            Certificate chain trust validation<br />
-            Hostname mismatch detection<br />
-            Self-signed certificate detection
-          </div>
-          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 16, marginBottom: 8 }}>Protocol Testing:</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-            SSLv2 / SSLv3 detection (insecure)<br />
-            TLS 1.0 / 1.1 detection (deprecated)<br />
-            TLS 1.2 / 1.3 support verification
-          </div>
-          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 16, marginBottom: 8 }}>Cipher Analysis:</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-            Weak cipher suite detection (RC4, DES, 3DES)<br />
-            Perfect Forward Secrecy (PFS) verification<br />
-            Key length validation (RSA &gt;= 2048, ECC &gt;= 256)
           </div>
         </div>
       </div>
@@ -737,7 +674,6 @@ export default function ScanForm() {
     notifications: renderNotifications,
     discovery: renderDiscovery,
     ping: renderPing,
-    tls: renderTls,
     assessment: renderAssessment,
     report: renderReport,
     advanced: renderAdvanced,

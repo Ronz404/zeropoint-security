@@ -17,7 +17,7 @@ import FeedStatus from './pages/FeedStatus';
 import Trends from './pages/Trends';
 import Alerts from './pages/Alerts';
 import CveBrowser from './pages/CveBrowser';
-import TlsScan from './pages/TlsScan';
+
 
 export default function App() {
   return (
@@ -40,7 +40,7 @@ export default function App() {
         <Route path="/trends" element={<Trends />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/cve-browser" element={<CveBrowser />} />
-        <Route path="/tls-scan" element={<TlsScan />} />
+
       </Route>
     </Routes>
   );

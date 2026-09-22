@@ -44,6 +44,7 @@ class DiscoveryScanCreate(BaseModel):
     comment: Optional[str] = None
     credentials: Optional[ScanCredentials] = None
     options: Optional[ScanOptions] = None
+    template: Optional[str] = None  # e.g. ping-discovery, host-discovery
 
 
 class VulnScanCreate(BaseModel):
@@ -51,6 +52,7 @@ class VulnScanCreate(BaseModel):
     name: Optional[str] = None
     credentials: Optional[ScanCredentials] = None
     options: Optional[ScanOptions] = None
+    template: Optional[str] = None  # e.g. basic-network, advanced-scan
 
 
 # Known UUIDs of built-in scan configs
@@ -129,8 +131,24 @@ def _build_task_preferences(opts: ScanOptions) -> dict | None:
     return prefs if prefs else None
 
 
+TEMPLATE_LABELS = {
+    "ping-discovery": "Ping-Only Discovery",
+    "host-discovery": "Host Discovery",
+    "basic-network": "Basic Network Scan",
+    "advanced-scan": "Advanced Scan",
+}
+
+
+def _build_comment(base: str, template: str | None) -> str:
+    """Build task comment with embedded template tag for UI display."""
+    tag = f"[template:{template}]" if template else ""
+    return f"{base} {tag}".strip()
+
+
 def _resolve_port_list(port_scan_type: str) -> str | None:
     """Resolve port scan type to a port list ID. Returns None for default."""
+    if port_scan_type == "ping-only":
+        return gvm_client.get_or_create_ping_port_list()
     if port_scan_type == "port-all":
         return gvm_client.get_or_create_all_tcp_port_list()
     # port-common and custom use the default port list (handled by create_target)
@@ -259,7 +277,10 @@ def create_discovery_scan(payload: DiscoveryScanCreate):
             target_id=target_id,
             config_id=DISCOVERY_CONFIG_UUID,
             scanner_id=scanner_id,
-            comment="Network discovery scan to find live hosts and services",
+            comment=_build_comment(
+                "Network discovery scan to find live hosts and services",
+                payload.template,
+            ),
             **task_kwargs,
         )
 
@@ -315,7 +336,10 @@ def create_vuln_scan(payload: VulnScanCreate):
             target_id=target_id,
             config_id=config_id,
             scanner_id=scanner_id,
-            comment=f"Vulnerability scan for {payload.host}",
+            comment=_build_comment(
+                f"Vulnerability scan for {payload.host}",
+                payload.template,
+            ),
             **task_kwargs,
         )
 

@@ -1,8 +1,33 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Play, X, Search, FolderClosed, CheckCircle, XCircle,
-         Clock, ScanLine, Trash2, ChevronDown } from 'lucide-react';
+         Clock, ScanLine, Trash2, ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { api } from '../lib/api';
+
+/* Template labels */
+const TEMPLATE_LABELS = {
+  'ping-discovery': 'Ping-Only Discovery',
+  'host-discovery': 'Host Discovery',
+  'basic-network': 'Basic Network Scan',
+  'advanced-scan': 'Advanced Scan',
+};
+
+/* Extract template from comment tag [template:xxx] */
+function templateName(item) {
+  const comment = item.comment || '';
+  const match = comment.match(/\[template:([^\]]+)\]/);
+  if (match && TEMPLATE_LABELS[match[1]]) return TEMPLATE_LABELS[match[1]];
+  // Fallback for older scans without tag
+  const name = (item.name || '').toLowerCase();
+  const cfg = (item.config?.name || item.scan_config?.name || '').toLowerCase();
+  if (cfg.includes('discovery')) {
+    if (name.includes('ping')) return 'Ping-Only Discovery';
+    return 'Host Discovery';
+  }
+  if (cfg.includes('full and deep')) return 'Advanced Scan';
+  if (name.includes('tls')) return 'TLS Scan';
+  return 'Basic Network Scan';
+}
 
 /* Map scan config names to user-friendly types */
 function scanType(task) {
@@ -52,6 +77,7 @@ export default function Scans() {
   const [tasks, setTasks] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sortDir, setSortDir] = useState('desc'); // 'desc' = newest first, 'asc' = oldest first
   const navigate = useNavigate();
 
   async function reload() {
@@ -67,9 +93,13 @@ export default function Scans() {
 
   useEffect(() => { reload(); }, []);
 
-  const filtered = tasks.filter((t) =>
-    (t.name || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = tasks
+    .filter((t) => (t.name || '').toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      const dateA = new Date(a.last_report?.report?.timestamp || 0);
+      const dateB = new Date(b.last_report?.report?.timestamp || 0);
+      return sortDir === 'desc' ? dateB - dateA : dateA - dateB;
+    });
 
   return (
     <div className="scan-layout">
@@ -126,11 +156,18 @@ export default function Scans() {
               <tr>
                 <th style={{ width: 36 }}></th>
                 <th className="sortable">Name</th>
-                <th>Scan Type</th>
+                <th>Template</th>
                 <th>Schedule</th>
                 <th></th>
-                <th className="sortable">
-                  Last Scanned <ChevronDown size={10} style={{ verticalAlign: 'middle' }} />
+                <th
+                  className="sortable"
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => setSortDir((d) => d === 'desc' ? 'asc' : 'desc')}
+                >
+                  Last Scanned{' '}
+                  {sortDir === 'desc'
+                    ? <ChevronDown size={10} style={{ verticalAlign: 'middle' }} />
+                    : <ChevronUp size={10} style={{ verticalAlign: 'middle' }} />}
                 </th>
                 <th style={{ width: 80 }}></th>
               </tr>
@@ -149,7 +186,7 @@ export default function Scans() {
                       </Link>
                     </td>
                     <td>
-                      <span className="scan-type-badge">{scanType(t)}</span>
+                      <span className="scan-type-badge">{templateName(t)}</span>
                     </td>
                     <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                       {t.schedule?.name || 'On Demand'}

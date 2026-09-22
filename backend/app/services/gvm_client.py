@@ -76,11 +76,15 @@ def create_target(name: str, hosts: str, port_list_id: str | None = None,
                   comment: str | None = None,
                   ssh_credential_id: str | None = None,
                   smb_credential_id: str | None = None) -> str:
+    from datetime import datetime, timezone
+    # Append short timestamp to avoid duplicate-name errors on re-runs
+    ts = datetime.now(timezone.utc).strftime("%m%d-%H%M%S")
+    unique_name = f"{name} [{ts}]"
     with gmp_session() as gmp:
         if not port_list_id:
             port_list_id = _default_port_list_id(gmp)
         kwargs = dict(
-            name=name,
+            name=unique_name,
             hosts=[h.strip() for h in hosts.split(",") if h.strip()],
             port_list_id=port_list_id,
             comment=comment,
@@ -90,7 +94,12 @@ def create_target(name: str, hosts: str, port_list_id: str | None = None,
         if smb_credential_id:
             kwargs["smb_credential_id"] = smb_credential_id
         response = gmp.create_target(**kwargs)
-        return response.get("id", "")
+        target_id = response.get("id", "")
+        if not target_id:
+            status = response.get("status", "")
+            status_text = response.get("status_text", "unknown error")
+            raise RuntimeError(f"Target creation failed ({status}): {status_text}")
+        return target_id
 
 
 def delete_target(target_id: str) -> None:
@@ -285,6 +294,7 @@ def _flatten_report(outer: ET.Element) -> dict:
         "name": text(outer, "name") or text(task, "name"),
         "task_id": task.get("id") if task is not None else None,
         "task_name": text(task, "name"),
+        "task_comment": text(task, "comment"),
         "creation_time": text(outer, "creation_time") or text(inner, "scan_start"),
         "modification_time": text(outer, "modification_time"),
         "scan_start": text(inner, "scan_start"),
@@ -864,7 +874,7 @@ def _call_ollama(prompt: str) -> str | None:
         "stream": False,
         "options": {
             "temperature": 0.3,  # lower = more deterministic remediation advice
-            "num_predict": 350,   # cap response length to keep latency reasonable
+            "num_predict": 800,   # allow longer step-by-step responses
         },
     }).encode("utf-8")
 
@@ -894,22 +904,43 @@ def _build_remediation_prompt(finding: dict) -> str:
     cves_str = ", ".join(cves[:5]) if cves else "none referenced"
 
     return (
-        "You are a cybersecurity remediation advisor for small and medium "
-        "enterprises in the Philippines. Provide concise, actionable "
-        "remediation steps for the following vulnerability finding from "
-        "an OpenVAS scan. Write in plain English at a level an IT generalist "
-        "can act on without specialized security training.\n\n"
-        f"Finding: {name}\n"
-        f"Severity (CVSS): {severity} ({threat})\n"
-        f"Port: {port}\n"
-        f"CVE references: {cves_str}\n"
-        f"Description: {desc}\n\n"
-        "Provide your response in the following structure:\n"
-        "1. One-sentence summary of the risk.\n"
-        "2. Three numbered remediation steps in priority order.\n"
-        "3. Verification step (how the IT team can confirm the fix worked).\n\n"
-        "Keep the total response under 250 words. Do not invent CVEs or "
-        "patch versions you are not certain about; if uncertain, say so."
+        "You are a cybersecurity remediation advisor helping IT staff fix "
+        "vulnerabilities found by OpenVAS. Your audience is an IT generalist "
+        "who needs exact, click-by-click instructions they can follow without "
+        "specialized security training.\n\n"
+        f"VULNERABILITY:\n"
+        f"  Name: {name}\n"
+        f"  Severity (CVSS): {severity} ({threat})\n"
+        f"  Port/Service: {port}\n"
+        f"  CVE references: {cves_str}\n"
+        f"  Description: {desc}\n\n"
+        "RESPOND IN THIS EXACT FORMAT:\n\n"
+        "## Risk Summary\n"
+        "One or two sentences: what the vulnerability is, what an attacker "
+        "could do if it is not fixed, and how urgent it is.\n\n"
+        "## Step-by-Step Remediation\n"
+        "Give 3 to 5 numbered steps. Each step must be specific and "
+        "actionable. Include:\n"
+        "- Exact commands to run (with the full command line)\n"
+        "- Exact menus, buttons, or settings to click in a GUI\n"
+        "- File paths and config values to change\n"
+        "- For Windows: use PowerShell or Settings path (e.g., "
+        "Settings > Network & Internet > ...)\n"
+        "- For Linux: use terminal commands (apt, systemctl, nano, etc.)\n"
+        "- For network devices: use the device admin panel path\n"
+        "If the fix depends on the OS or device, give instructions for "
+        "the most common platforms (Windows, Ubuntu/Debian, CentOS/RHEL).\n\n"
+        "## Verify the Fix\n"
+        "One or two concrete steps to confirm the vulnerability is resolved. "
+        "Include a command or test the user can run.\n\n"
+        "## Quick Tip\n"
+        "One sentence of preventive advice to avoid this issue in the future.\n\n"
+        "RULES:\n"
+        "- Be specific: say 'Run: sudo apt update && sudo apt upgrade openssl' "
+        "not 'update the software'.\n"
+        "- Never invent CVE IDs or patch version numbers you are unsure about.\n"
+        "- Keep total response under 500 words.\n"
+        "/no_think"
     )
 
 
@@ -1128,6 +1159,28 @@ def generate_remediation(finding: dict) -> dict:
             "advisor (Ollama LLM was unavailable or disabled)."
         ),
     }
+
+
+# ----- Ping-Only helpers ----------------------------------------------
+
+PING_PORTS = "T:22,80,443"
+
+
+def get_or_create_ping_port_list() -> str:
+    """Find or create a minimal port list for ping-only scans.
+    Only 3 ports (22, 80, 443) used for TCP alive-detection, not service enumeration."""
+    name = "ZeroPoint Ping Only"
+    with gmp_session() as gmp:
+        response = gmp.get_port_lists()
+        for pl in response.findall("port_list"):
+            if pl.findtext("name") == name:
+                return pl.get("id")
+        new = gmp.create_port_list(
+            name=name,
+            port_range=PING_PORTS,
+            comment="Minimal ports for ping-only host alive detection (22, 80, 443)",
+        )
+        return new.get("id", "")
 
 
 # ----- TLS Scan helpers ---------------------------------------------

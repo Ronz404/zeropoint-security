@@ -26,6 +26,7 @@ function statusBadge(status) {
 function HostCard({ ip, findings, onScan }) {
   const [expanded, setExpanded] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [showScanMenu, setShowScanMenu] = useState(false);
 
   // Extract useful info from findings
   let hostname = null;
@@ -53,10 +54,11 @@ function HostCard({ ip, findings, onScan }) {
     }
   });
 
-  async function handleScan() {
+  async function handleScan(template) {
+    setShowScanMenu(false);
     setScanning(true);
     try {
-      const result = await onScan(ip);
+      const result = await onScan(ip, template);
       return result;
     } finally {
       setScanning(false);
@@ -106,15 +108,57 @@ function HostCard({ ip, findings, onScan }) {
             </span>
           </div>
         </div>
-        <button
-          className="btn"
-          style={{ fontSize: 11, padding: '6px 12px', flexShrink: 0 }}
-          disabled={scanning}
-          onClick={(e) => { e.stopPropagation(); handleScan(); }}
-        >
-          <Crosshair size={12} />
-          {scanning ? 'Starting...' : 'Scan this host'}
-        </button>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <button
+            className="btn"
+            style={{ fontSize: 11, padding: '6px 12px' }}
+            disabled={scanning}
+            onClick={(e) => { e.stopPropagation(); setShowScanMenu(!showScanMenu); }}
+          >
+            <Crosshair size={12} />
+            {scanning ? 'Starting...' : 'Scan this host'}
+          </button>
+          {showScanMenu && (
+            <div
+              style={{
+                position: 'absolute', right: 0, top: '100%', marginTop: 4,
+                background: 'var(--bg-elev)', border: '1px solid var(--border)',
+                borderRadius: 6, padding: 4, zIndex: 100, minWidth: 200,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                style={{
+                  padding: '8px 12px', cursor: 'pointer', borderRadius: 4,
+                  fontSize: 12, color: 'var(--text)',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-elev-2)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                onClick={() => handleScan('basic-network')}
+              >
+                <div style={{ fontWeight: 600 }}>Basic Network Scan</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Common ports, standard checks
+                </div>
+              </div>
+              <div
+                style={{
+                  padding: '8px 12px', cursor: 'pointer', borderRadius: 4,
+                  fontSize: 12, color: 'var(--text)',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-elev-2)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                onClick={() => handleScan('advanced-scan')}
+              >
+                <div style={{ fontWeight: 600, color: 'var(--critical)' }}>Advanced Scan</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                  All 65k ports, deep web testing
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {expanded && (
@@ -245,8 +289,26 @@ export default function ScanDetail() {
     return 0;
   });
 
-  async function scanHost(ip) {
-    const result = await api.createVulnScan({ host: ip });
+  async function scanHost(ip, template) {
+    const isAdvanced = template === 'advanced-scan';
+    const result = await api.createVulnScan({
+      host: ip,
+      name: `${isAdvanced ? 'Advanced' : 'Basic'} - ${ip}`,
+      template,
+      options: isAdvanced ? {
+        port_scan_type: 'port-all',
+        assessment_type: 'all-web-complex',
+        max_hosts: 50,
+        max_checks: 8,
+        network_timeout: 10,
+      } : {
+        port_scan_type: 'port-common',
+        assessment_type: 'default',
+        max_hosts: 30,
+        max_checks: 4,
+        network_timeout: 5,
+      },
+    });
     navigate(`/scans/${result.task_id}`);
     return result;
   }
@@ -304,20 +366,35 @@ export default function ScanDetail() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 500 }}>Progress</span>
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            {status === 'done' ? '100%' : progress > 0 ? `${progress}%` : isRunning ? 'Scanning...' : progress === 0 ? '0%' : 'Waiting...'}
-            {isRunning && <RefreshCw size={12} style={{ marginLeft: 6, animation: 'spin 2s linear infinite' }} />}
+          <span style={{ fontSize: 13, color: isRunning ? 'var(--accent)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {status === 'done' ? '100%'
+              : progress > 0 ? `${progress}%`
+              : isRunning ? 'Initializing scan...'
+              : status === 'new' ? 'Not started'
+              : '0%'}
+            {isRunning && <RefreshCw size={12} style={{ animation: 'spin 2s linear infinite' }} />}
           </span>
         </div>
-        <div style={{ height: 8, background: 'var(--bg)', borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{
-            height: '100%',
-            width: status === 'done' ? '100%' : `${Math.max(progress, isRunning && progress <= 0 ? 3 : 0)}%`,
-            background: isRunning ? 'var(--accent)' : (status === 'done' ? 'var(--accent)' : 'var(--text-muted)'),
-            borderRadius: 4,
-            transition: 'width 0.5s ease',
-            ...(isRunning && progress <= 0 ? { animation: 'pulse-bar 1.5s ease-in-out infinite' } : {}),
-          }} />
+        <div style={{ height: 10, background: 'var(--bg)', borderRadius: 5, overflow: 'hidden', position: 'relative' }}>
+          {isRunning && progress <= 0 ? (
+            /* Indeterminate shimmer bar when running at 0% */
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'linear-gradient(90deg, transparent 0%, var(--accent) 40%, var(--accent) 60%, transparent 100%)',
+              backgroundSize: '200% 100%',
+              animation: 'shimmer-bar 1.8s ease-in-out infinite',
+              borderRadius: 5,
+              opacity: 0.7,
+            }} />
+          ) : (
+            <div style={{
+              height: '100%',
+              width: status === 'done' ? '100%' : `${progress}%`,
+              background: status === 'done' ? 'var(--accent)' : isRunning ? 'var(--accent)' : 'var(--text-muted)',
+              borderRadius: 5,
+              transition: 'width 0.5s ease',
+            }} />
+          )}
         </div>
         {/* Per-host progress when scanning */}
         {isRunning && Object.keys(hostProgress).length > 0 && (
@@ -405,7 +482,7 @@ export default function ScanDetail() {
                   fontSize: 12, color: 'var(--text-muted)', marginBottom: 10,
                   padding: '8px 12px', background: 'var(--bg)', borderRadius: 6,
                 }}>
-                  Click <strong>Scan this host</strong> to run a full vulnerability scan (Full and Fast) on any discovered device.
+                  Click <strong>Scan this host</strong> to run a vulnerability scan on any discovered device. Choose Basic (common ports) or Advanced (all 65k ports, deep testing).
                 </div>
               )}
               {hosts.map((ip) => (
@@ -495,9 +572,9 @@ export default function ScanDetail() {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        @keyframes pulse-bar {
-          0%, 100% { opacity: 0.5; }
-          50% { opacity: 1; }
+        @keyframes shimmer-bar {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
         }
       `}</style>
     </div>

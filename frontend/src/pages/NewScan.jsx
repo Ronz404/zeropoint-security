@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Radar, Shield, Crosshair, Lock, Settings, Search,
+import { ArrowLeft, Radar, Shield, Crosshair, Settings, Search,
          Network, Fingerprint, Wifi } from 'lucide-react';
 
 const TEMPLATES = {
@@ -31,16 +31,9 @@ const TEMPLATES = {
     {
       id: 'advanced-scan',
       name: 'Advanced Scan',
-      desc: 'Configure a scan without using any recommendations. Full control over scan settings.',
+      desc: 'Deep, thorough scan with all 65,535 TCP ports, full web app testing, and aggressive performance settings.',
       icon: Settings,
-      color: '#7f8c8d',
-    },
-    {
-      id: 'tls-certificate',
-      name: 'TLS Certificate Scan',
-      desc: 'Verify TLS/SSL certificates for expiration, weak ciphers, and protocol vulnerabilities.',
-      icon: Lock,
-      color: '#f39c12',
+      color: '#e74c3c',
     },
   ],
 };
