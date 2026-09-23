@@ -58,6 +58,7 @@ export const api = {
   // Scan Configs (extended)
   listScanConfigsDetailed: () => request('/scan-configs'),
   cloneScanConfig: (id) => request(`/scan-configs/${id}/clone`, { method: 'POST' }),
+  deleteScanConfig: (id) => request(`/scan-configs/${id}`, { method: 'DELETE' }),
 
   // SecInfo
   getFeedsStatus: () => request('/secinfo/feeds'),
@@ -68,6 +69,8 @@ export const api = {
   listAlerts: () => request('/alerts'),
   createEmailAlert: (data) => request('/alerts', { method: 'POST', body: JSON.stringify(data) }),
   deleteAlert: (id) => request(`/alerts/${id}`, { method: 'DELETE' }),
+  getSmtpStatus: () => request('/alerts/smtp-status'),
+  sendTestEmail: (data) => request('/alerts/test-email', { method: 'POST', body: JSON.stringify(data) }),
 
   // CVE Browser
   listCves: (page = 1, pageSize = 50, search = '') =>
@@ -78,6 +81,9 @@ export const api = {
 
   // AI Remediation
   getRemediation: (finding) => request('/ai/remediation', { method: 'POST', body: JSON.stringify(finding) }),
+
+  // Dashboard
+  getDashboardSummary: () => request('/dashboard/summary'),
 
   // Quick Scans
   createTlsScan: (data) => request('/quickscans/tls-certificate', { method: 'POST', body: JSON.stringify(data) }),

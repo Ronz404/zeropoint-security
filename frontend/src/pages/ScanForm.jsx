@@ -35,7 +35,6 @@ const TEMPLATE_META = {
 function getSections(template) {
   const basic = [
     { id: 'general', label: 'General' },
-    { id: 'schedule', label: 'Schedule' },
     { id: 'notifications', label: 'Notifications' },
   ];
 
@@ -337,7 +336,6 @@ export default function ScanForm() {
           >
             <option value="port-common">Port scan (common ports)</option>
             <option value="port-all">Port scan (all ports)</option>
-            <option value="custom">Custom</option>
           </select>
         </div>
 
@@ -408,7 +406,6 @@ export default function ScanForm() {
             <option value="known-web">Scan for known web vulnerabilities</option>
             <option value="all-web-quick">Scan for all web vulnerabilities (quick)</option>
             <option value="all-web-complex">Scan for all web vulnerabilities (complex)</option>
-            <option value="custom">Custom</option>
           </select>
         </div>
 

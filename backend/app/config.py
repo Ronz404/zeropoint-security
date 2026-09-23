@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     ollama_enabled: bool = True
     ollama_timeout_seconds: int = 180
 
+    # Email notifications (Gmail SMTP)
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_email: str = ""
+    smtp_password: str = ""
+
     class Config:
         env_file = ".env"
         env_prefix = ""

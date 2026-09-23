@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, Lock, SlidersHorizontal } from 'lucide-react';
+import { Copy, Lock, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 
 export default function ScanConfigs() {
@@ -23,6 +23,16 @@ export default function ScanConfigs() {
     if (!confirm(`Clone "${name}" so you can customize it?`)) return;
     try {
       await api.cloneScanConfig(id);
+      reload();
+    } catch (err) {
+      alert(`Failed: ${err.message}`);
+    }
+  }
+
+  async function remove(id, name) {
+    if (!confirm(`Delete custom config "${name}"?`)) return;
+    try {
+      await api.deleteScanConfig(id);
       reload();
     } catch (err) {
       alert(`Failed: ${err.message}`);
@@ -54,7 +64,7 @@ export default function ScanConfigs() {
                 <th>NVTs</th>
                 <th>Usage</th>
                 <th>Source</th>
-                <th style={{ width: 110 }}></th>
+                <th style={{ width: 140 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -74,7 +84,7 @@ export default function ScanConfigs() {
                       <span className="badge badge-new">Custom</span>
                     )}
                   </td>
-                  <td>
+                  <td style={{ display: 'flex', gap: 4 }}>
                     <button
                       className="btn-icon"
                       title="Clone this config"
@@ -83,6 +93,15 @@ export default function ScanConfigs() {
                       <Copy size={14} />
                       <span style={{ marginLeft: 4, fontSize: 11 }}>Clone</span>
                     </button>
+                    {!c.predefined && (
+                      <button
+                        className="btn-icon"
+                        title="Delete this custom config"
+                        onClick={() => remove(c.id, c.name)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

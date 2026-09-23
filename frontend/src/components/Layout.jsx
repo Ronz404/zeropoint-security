@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Shield, LayoutDashboard, Target, Key, ScanLine, Calendar, FileText,
+import { Shield, LayoutDashboard, Target, ScanLine, FileText,
          Server, ListOrdered, SlidersHorizontal, Database,
          TrendingUp, Bell, Bug } from 'lucide-react';
 
@@ -7,9 +7,7 @@ const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/trends', label: 'Trends', icon: TrendingUp },
   { to: '/targets', label: 'Targets', icon: Target },
-  { to: '/credentials', label: 'Credentials', icon: Key },
   { to: '/scans', label: 'Scans', icon: ScanLine },
-  { to: '/schedules', label: 'Schedules', icon: Calendar },
   { to: '/alerts', label: 'Alerts', icon: Bell },
   { to: '/reports', label: 'Reports', icon: FileText },
   { to: '/assets', label: 'Assets', icon: Server },

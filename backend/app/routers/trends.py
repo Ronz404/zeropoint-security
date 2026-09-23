@@ -5,7 +5,7 @@ router = APIRouter(prefix="/api/trends", tags=["trends"])
 
 
 @router.get("/severity")
-def severity_trend(days: int = Query(30, ge=1, le=365)):
+def severity_trend(days: int = Query(30, ge=0, le=365)):
     """Severity counts aggregated by day for the last N days."""
     try:
         return gvm_client.get_trend_data(days=days)

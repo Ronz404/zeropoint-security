@@ -16,31 +16,16 @@ export default function Dashboard() {
   const [targetCount, setTargetCount] = useState(0);
 
   useEffect(() => {
-    // Pull what we can and compute a coarse severity summary from reports.
     async function load() {
       try {
-        const [tasks, targets, reports] = await Promise.all([
+        const [tasks, targets, summary] = await Promise.all([
           api.listTasks().catch(() => []),
           api.listTargets().catch(() => []),
-          api.listReports().catch(() => []),
+          api.getDashboardSummary().catch(() => ({ critical: 0, high: 0, medium: 0, low: 0, info: 0 })),
         ]);
         setTaskCount(tasks.length);
         setTargetCount(targets.length);
-
-        const c = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
-        for (const r of reports) {
-          const sev = r?.result_count?.hole ?? r?.severity;
-          // Coarse bucketing if severity number is available
-          const s = parseFloat(r?.severity);
-          if (!Number.isNaN(s)) {
-            if (s >= 9) c.critical++;
-            else if (s >= 7) c.high++;
-            else if (s >= 4) c.medium++;
-            else if (s > 0) c.low++;
-            else c.info++;
-          }
-        }
-        setCounts(c);
+        setCounts(summary);
       } catch (e) {
         console.error(e);
       }

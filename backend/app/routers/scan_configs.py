@@ -31,3 +31,12 @@ def clone_scan_config(config_id: str):
         return {"id": new_id}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/{config_id}", status_code=204)
+def delete_scan_config(config_id: str):
+    """Delete a custom (non-predefined) scan config."""
+    try:
+        gvm_client.delete_scan_config(config_id)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

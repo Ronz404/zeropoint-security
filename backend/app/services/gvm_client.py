@@ -405,6 +405,35 @@ def export_report(report_id: str, format_id: str = REPORT_FORMAT_XML) -> bytes:
             return content.encode("utf-8")
 
 
+# ----- Dashboard Summary (real per-finding severity counts) ----------
+
+def get_dashboard_summary() -> dict:
+    """Aggregate actual finding counts by severity across all reports."""
+    with gmp_session() as gmp:
+        # get_results returns all individual findings from all reports
+        response = gmp.get_results(
+            filter_string="rows=-1 sort-reverse=severity"
+        )
+        counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+        for result in response.findall("result"):
+            sev_text = result.findtext("severity")
+            try:
+                sev = float(sev_text) if sev_text else 0.0
+            except ValueError:
+                sev = 0.0
+            if sev >= 9.0:
+                counts["critical"] += 1
+            elif sev >= 7.0:
+                counts["high"] += 1
+            elif sev >= 4.0:
+                counts["medium"] += 1
+            elif sev > 0.0:
+                counts["low"] += 1
+            else:
+                counts["info"] += 1
+        return counts
+
+
 # ----- Assets (auto-discovered hosts) -------------------------------
 
 def list_assets(asset_type: str = "host") -> list[dict]:
@@ -510,6 +539,12 @@ def clone_scan_config(config_id: str) -> str:
             raw = ET.tostring(response, encoding="unicode") if hasattr(response, "tag") else str(response)
             raise RuntimeError(f"Clone sent but no ID returned. Response: {raw[:300]}")
         return new_id
+
+
+def delete_scan_config(config_id: str) -> None:
+    """Delete a custom scan config."""
+    with gmp_session() as gmp:
+        gmp.delete_scan_config(config_id=config_id)
 
 
 def debug_get_config_xml(config_id: str | None = None) -> str:
@@ -778,15 +813,22 @@ def list_cves_paginated(page: int = 1, page_size: int = 50,
 # ----- Trend Analysis (severity over time) --------------------------
 
 def get_trend_data(days: int = 30) -> list[dict]:
-    """Aggregate report severity counts by day for the last N days.
-    Returns a list of {date, critical, high, medium, low, info, total}."""
+    """Aggregate actual finding severity counts by day for the last N days.
+    days=0 means all time. Returns a list of {date, critical, high, medium,
+    low, info, scans}."""
     from datetime import datetime, timedelta, timezone
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    all_time = days == 0
+    cutoff = (datetime.min.replace(tzinfo=timezone.utc) if all_time
+              else datetime.now(timezone.utc) - timedelta(days=days))
     buckets = {}  # date string -> counts
+    earliest_date = None
 
     with gmp_session() as gmp:
-        response = gmp.get_reports()
+        # Count scans (reports) per day
+        response = gmp.get_reports(
+            filter_string="rows=200 sort-reverse=date"
+        )
         for r in response.findall("report"):
             ct = r.findtext("creation_time")
             if not ct:
@@ -804,10 +846,30 @@ def get_trend_data(days: int = 30) -> list[dict]:
                 "scans": 0,
             })
             bucket["scans"] += 1
+            if earliest_date is None or dt.date() < earliest_date:
+                earliest_date = dt.date()
 
-            # Severity classification from the report's overall severity
-            inner = r.find("report") or r
-            sev_text = inner.findtext("severity") or inner.findtext("severity/full")
+        # Count actual findings per day by severity
+        results_response = gmp.get_results(
+            filter_string="rows=-1 sort-reverse=severity"
+        )
+        for result in results_response.findall("result"):
+            ct = result.findtext("creation_time")
+            if not ct:
+                continue
+            try:
+                dt = datetime.fromisoformat(ct.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if dt < cutoff:
+                continue
+            day_key = dt.strftime("%Y-%m-%d")
+            bucket = buckets.setdefault(day_key, {
+                "date": day_key,
+                "critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0,
+                "scans": 0,
+            })
+            sev_text = result.findtext("severity")
             try:
                 sev = float(sev_text) if sev_text else 0.0
             except ValueError:
@@ -826,7 +888,8 @@ def get_trend_data(days: int = 30) -> list[dict]:
     # Fill in missing days with zeros
     out = []
     today = datetime.now(timezone.utc).date()
-    for i in range(days - 1, -1, -1):
+    start_days = (today - earliest_date).days if (all_time and earliest_date) else days
+    for i in range(start_days, -1, -1):
         d = today - timedelta(days=i)
         key = d.strftime("%Y-%m-%d")
         out.append(buckets.get(key, {

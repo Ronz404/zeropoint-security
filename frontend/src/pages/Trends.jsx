@@ -44,6 +44,12 @@ export default function Trends() {
               {d} days
             </button>
           ))}
+          <button
+            className={`btn ${days === 0 ? '' : 'btn-secondary'}`}
+            onClick={() => setDays(0)}
+          >
+            All
+          </button>
         </div>
       </div>
 
@@ -66,7 +72,7 @@ export default function Trends() {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <h3 className="card-title">Severity over time ({days} days)</h3>
+        <h3 className="card-title">Severity over time ({days === 0 ? 'all time' : `${days} days`})</h3>
         {loading ? (
           <div className="empty">Loading…</div>
         ) : data.length === 0 ? (

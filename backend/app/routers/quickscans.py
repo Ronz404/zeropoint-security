@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from ..services import gvm_client
+from ..services.scan_monitor import register_notification
 
 router = APIRouter(prefix="/api/quickscans", tags=["quickscans"])
 
@@ -235,6 +236,12 @@ def create_tls_scan(payload: TlsScanCreate):
         if not task_kwargs.get("schedule_id"):
             gvm_client.start_task(task_id)
 
+        # Register email notification for our SMTP service
+        if payload.options and payload.options.email_recipients:
+            recipients = [r.strip() for r in payload.options.email_recipients.split(",") if r.strip()]
+            if recipients:
+                register_notification(task_id, recipients, payload.name)
+
         return {
             "task_id": task_id,
             "target_id": target_id,
@@ -287,6 +294,12 @@ def create_discovery_scan(payload: DiscoveryScanCreate):
         # Auto-start only if no schedule is set
         if not task_kwargs.get("schedule_id"):
             gvm_client.start_task(task_id)
+
+        # Register email notification for our SMTP service
+        if payload.options and payload.options.email_recipients:
+            recipients = [r.strip() for r in payload.options.email_recipients.split(",") if r.strip()]
+            if recipients:
+                register_notification(task_id, recipients, payload.name)
 
         return {
             "task_id": task_id,
@@ -346,6 +359,12 @@ def create_vuln_scan(payload: VulnScanCreate):
         # Auto-start only if no schedule is set
         if not task_kwargs.get("schedule_id"):
             gvm_client.start_task(task_id)
+
+        # Register email notification for our SMTP service
+        if payload.options and payload.options.email_recipients:
+            recipients = [r.strip() for r in payload.options.email_recipients.split(",") if r.strip()]
+            if recipients:
+                register_notification(task_id, recipients, scan_name)
 
         return {
             "task_id": task_id,
