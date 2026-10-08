@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from ..models import TargetCreate
 from ..services import gvm_client
+from ..services.auth import require_admin
 
 router = APIRouter(prefix="/api/targets", tags=["targets"])
 
@@ -14,7 +15,7 @@ def list_targets():
 
 
 @router.post("", status_code=201)
-def create_target(payload: TargetCreate):
+def create_target(payload: TargetCreate, _=Depends(require_admin)):
     try:
         target_id = gvm_client.create_target(
             name=payload.name,
@@ -28,7 +29,7 @@ def create_target(payload: TargetCreate):
 
 
 @router.delete("/{target_id}", status_code=204)
-def delete_target(target_id: str):
+def delete_target(target_id: str, _=Depends(require_admin)):
     try:
         gvm_client.delete_target(target_id)
     except Exception as exc:

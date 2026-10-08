@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { FileText, Download, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
+import Pagination, { usePagination } from '../components/Pagination';
 
 /* Template labels */
 const TEMPLATE_LABELS = {
@@ -60,6 +61,8 @@ export default function Reports() {
     return sortDir === 'desc' ? dateB - dateA : dateA - dateB;
   });
 
+  const [paged, pgProps] = usePagination(sorted, 'report');
+
   return (
     <div>
       <div className="page-header">
@@ -96,7 +99,7 @@ export default function Reports() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((r) => (
+              {paged.map((r) => (
                 <tr key={r.id}>
                   <td>{r.task_name || r.name || '—'}</td>
                   <td>
@@ -140,6 +143,7 @@ export default function Reports() {
             </tbody>
           </table>
         )}
+        <Pagination {...pgProps} />
       </div>
     </div>
   );

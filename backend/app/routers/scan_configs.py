@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from ..services import gvm_client
+from ..services.auth import require_admin
 
 router = APIRouter(prefix="/api/scan-configs", tags=["scan-configs"])
 
@@ -24,7 +25,7 @@ def debug_raw(config_id: str | None = None):
 
 
 @router.post("/{config_id}/clone", status_code=201)
-def clone_scan_config(config_id: str):
+def clone_scan_config(config_id: str, _=Depends(require_admin)):
     """Clone a built-in scan config so it can be customized."""
     try:
         new_id = gvm_client.clone_scan_config(config_id)
@@ -34,7 +35,7 @@ def clone_scan_config(config_id: str):
 
 
 @router.delete("/{config_id}", status_code=204)
-def delete_scan_config(config_id: str):
+def delete_scan_config(config_id: str, _=Depends(require_admin)):
     """Delete a custom (non-predefined) scan config."""
     try:
         gvm_client.delete_scan_config(config_id)

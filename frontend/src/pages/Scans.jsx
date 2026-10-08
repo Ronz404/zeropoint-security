@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Play, X, Search, FolderClosed, CheckCircle, XCircle,
          Clock, ScanLine, Trash2, ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
+import Pagination, { usePagination } from '../components/Pagination';
 
 /* Template labels */
 const TEMPLATE_LABELS = {
@@ -74,6 +76,7 @@ function formatDate(dateStr) {
 }
 
 export default function Scans() {
+  const { isAdmin } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -101,6 +104,8 @@ export default function Scans() {
       return sortDir === 'desc' ? dateB - dateA : dateA - dateB;
     });
 
+  const [paged, pgProps] = usePagination(filtered, 'scan');
+
   return (
     <div className="scan-layout">
       {/* Folder sidebar */}
@@ -118,11 +123,13 @@ export default function Scans() {
         {/* Top bar */}
         <div className="scan-topbar">
           <h2>My Scans</h2>
-          <div className="scan-topbar-actions">
-            <button className="btn-nessus" onClick={() => navigate('/scans/new')}>
-              <Plus size={14} /> New Scan
-            </button>
-          </div>
+          {isAdmin && (
+            <div className="scan-topbar-actions">
+              <button className="btn-nessus" onClick={() => navigate('/scans/new')}>
+                <Plus size={14} /> New Scan
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Search bar */}
@@ -173,7 +180,7 @@ export default function Scans() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((t) => {
+              {paged.map((t) => {
                 const lastRun = t.last_report?.report?.timestamp || '';
                 return (
                   <tr key={t.id}>
@@ -198,20 +205,22 @@ export default function Scans() {
                       {formatDate(lastRun)}
                     </td>
                     <td>
-                      <div className="scan-actions">
-                        <button title="Start scan" onClick={(e) => {
-                          e.stopPropagation();
-                          api.startTask(t.id).then(reload);
-                        }}>
-                          <Play size={14} />
-                        </button>
-                        <button title="Delete scan" onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm('Delete this scan?')) api.deleteTask(t.id).then(reload);
-                        }}>
-                          <X size={14} />
-                        </button>
-                      </div>
+                      {isAdmin && (
+                        <div className="scan-actions">
+                          <button title="Start scan" onClick={(e) => {
+                            e.stopPropagation();
+                            api.startTask(t.id).then(reload);
+                          }}>
+                            <Play size={14} />
+                          </button>
+                          <button title="Delete scan" onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('Delete this scan?')) api.deleteTask(t.id).then(reload);
+                          }}>
+                            <X size={14} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );
@@ -219,6 +228,7 @@ export default function Scans() {
             </tbody>
           </table>
         )}
+        <Pagination {...pgProps} />
       </div>
 
       <style>{`

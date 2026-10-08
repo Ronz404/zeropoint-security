@@ -15,6 +15,7 @@ export default function Trends() {
   const [days, setDays] = useState(30);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [totalScans, setTotalScans] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -23,12 +24,16 @@ export default function Trends() {
       .catch(() => { setData([]); setLoading(false); });
   }, [days]);
 
+  // Fetch actual task count (same as Dashboard)
+  useEffect(() => {
+    api.listTasks().then((t) => setTotalScans(t.length)).catch(() => setTotalScans(0));
+  }, []);
+
   // Summary totals
   const totals = SEVERITIES.reduce((acc, s) => {
     acc[s.key] = data.reduce((sum, d) => sum + (d[s.key] || 0), 0);
     return acc;
   }, {});
-  const totalScans = data.reduce((sum, d) => sum + (d.scans || 0), 0);
 
   return (
     <div>

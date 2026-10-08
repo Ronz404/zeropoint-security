@@ -157,9 +157,6 @@ export default function ReportDetail() {
           <a className="btn-secondary btn" href={api.exportReportUrl(report.id, 'csv')}>
             <Download size={14} /> CSV
           </a>
-          <a className="btn-secondary btn" href={api.exportReportUrl(report.id, 'xml')}>
-            <Download size={14} /> XML
-          </a>
         </div>
       </div>
 

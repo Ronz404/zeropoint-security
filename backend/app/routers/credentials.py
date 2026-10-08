@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from ..models import CredentialCreate
 from ..services import gvm_client
+from ..services.auth import require_admin
 
 router = APIRouter(prefix="/api/credentials", tags=["credentials"])
 
@@ -14,7 +15,7 @@ def list_credentials():
 
 
 @router.post("", status_code=201)
-def create_credential(payload: CredentialCreate):
+def create_credential(payload: CredentialCreate, _=Depends(require_admin)):
     try:
         cid = gvm_client.create_credential_password(
             name=payload.name,
@@ -28,7 +29,7 @@ def create_credential(payload: CredentialCreate):
 
 
 @router.delete("/{credential_id}", status_code=204)
-def delete_credential(credential_id: str):
+def delete_credential(credential_id: str, _=Depends(require_admin)):
     try:
         gvm_client.delete_credential(credential_id)
     except Exception as exc:

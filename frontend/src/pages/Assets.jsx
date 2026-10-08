@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Server, Cpu } from 'lucide-react';
 import { api } from '../lib/api';
+import Pagination, { usePagination } from '../components/Pagination';
 
 function severityColor(score) {
   const s = parseFloat(score);
@@ -28,6 +29,8 @@ export default function Assets() {
       .then((d) => { setItems(d || []); setLoading(false); })
       .catch(() => { setItems([]); setLoading(false); });
   }, [type]);
+
+  const [paged, pgProps] = usePagination(items, type === 'host' ? 'host' : 'OS');
 
   return (
     <div>
@@ -77,7 +80,7 @@ export default function Assets() {
               </tr>
             </thead>
             <tbody>
-              {items.map((a) => (
+              {paged.map((a) => (
                 <tr key={a.id}>
                   <td>
                     <strong>{a.name || '—'}</strong>
@@ -98,6 +101,7 @@ export default function Assets() {
             </tbody>
           </table>
         )}
+        <Pagination {...pgProps} />
       </div>
     </div>
   );

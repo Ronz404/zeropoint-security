@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .routers import (
+    auth,
     targets, credentials, tasks, schedules, reports,
     assets, port_lists, scan_configs, secinfo,
     alerts, cves, trends, ai, quickscans, dashboard,
@@ -45,6 +46,9 @@ app.add_middleware(
 def health():
     return {"status": "ok"}
 
+
+# Auth
+app.include_router(auth.router)
 
 # Core CRUD
 app.include_router(targets.router)

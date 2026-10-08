@@ -1,5 +1,7 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './lib/auth';
 import Layout from './components/Layout';
+import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Targets from './pages/Targets';
 import Credentials from './pages/Credentials';
@@ -19,10 +21,42 @@ import Alerts from './pages/Alerts';
 import CveBrowser from './pages/CveBrowser';
 
 
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg)',
+        color: 'var(--text-muted)',
+        fontSize: 14,
+      }}>
+        Verifying session...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
+
 export default function App() {
   return (
     <Routes>
-      <Route element={<Layout />}>
+      <Route path="/login" element={<Login />} />
+      <Route element={
+        <ProtectedRoute>
+          <Layout />
+        </ProtectedRoute>
+      }>
         <Route index element={<Dashboard />} />
         <Route path="/targets" element={<Targets />} />
         <Route path="/credentials" element={<Credentials />} />
@@ -40,7 +74,6 @@ export default function App() {
         <Route path="/trends" element={<Trends />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/cve-browser" element={<CveBrowser />} />
-
       </Route>
     </Routes>
   );

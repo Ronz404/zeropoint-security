@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Bell, Mail, CheckCircle, XCircle, Send } from 'lucide-react';
+import { Plus, Trash2, Bell, Mail, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import Modal from '../components/Modal';
+import Pagination, { usePagination } from '../components/Pagination';
 
 export default function Alerts() {
+  const { isAdmin } = useAuth();
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', recipient: '', on_severity_at_least: 7.0, comment: '' });
@@ -12,9 +15,6 @@ export default function Alerts() {
 
   // SMTP status
   const [smtp, setSmtp] = useState(null);
-  const [testEmail, setTestEmail] = useState('');
-  const [testSending, setTestSending] = useState(false);
-  const [testResult, setTestResult] = useState(null);
 
   async function reload() {
     setItems(await api.listAlerts().catch(() => []));
@@ -58,27 +58,17 @@ export default function Alerts() {
     catch (err) { alert(`Failed: ${err.message}`); }
   }
 
-  async function handleTestEmail() {
-    if (!testEmail.trim()) return;
-    setTestSending(true);
-    setTestResult(null);
-    try {
-      await api.sendTestEmail({ recipient: testEmail.trim() });
-      setTestResult({ ok: true, msg: `Test email sent to ${testEmail}` });
-    } catch (err) {
-      setTestResult({ ok: false, msg: err.message || 'Failed to send test email' });
-    } finally {
-      setTestSending(false);
-    }
-  }
+  const [paged, pgProps] = usePagination(items, 'alert');
 
   return (
     <div>
       <div className="page-header">
         <h2>Alerts</h2>
-        <button className="btn" onClick={() => setOpen(true)}>
-          <Plus size={14} /> New email alert
-        </button>
+        {isAdmin && (
+          <button className="btn" onClick={() => setOpen(true)}>
+            <Plus size={14} /> New email alert
+          </button>
+        )}
       </div>
 
       {/* SMTP Status Card */}
@@ -113,37 +103,6 @@ export default function Alerts() {
           <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
             <div>Server: <strong style={{ color: 'var(--text)' }}>{smtp.smtp_host}:{smtp.smtp_port}</strong></div>
             <div>Sender: <strong style={{ color: 'var(--text)' }}>{smtp.smtp_email}</strong></div>
-            <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input
-                type="email"
-                value={testEmail}
-                onChange={(e) => setTestEmail(e.target.value)}
-                placeholder="Enter email to send a test"
-                style={{ flex: 1, maxWidth: 300, fontSize: 12, padding: '6px 10px' }}
-              />
-              <button
-                className="btn"
-                onClick={handleTestEmail}
-                disabled={testSending || !testEmail.trim()}
-                style={{ fontSize: 12, padding: '6px 12px' }}
-              >
-                <Send size={12} />
-                {testSending ? 'Sending...' : 'Send test'}
-              </button>
-            </div>
-            {testResult && (
-              <div style={{
-                marginTop: 8,
-                padding: '8px 12px',
-                borderRadius: 4,
-                fontSize: 12,
-                background: testResult.ok ? 'rgba(0,184,148,0.15)' : 'rgba(214,48,49,0.15)',
-                color: testResult.ok ? 'var(--success, #00b894)' : 'var(--critical)',
-              }}>
-                {testResult.ok ? <CheckCircle size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} /> : <XCircle size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />}
-                {testResult.msg}
-              </div>
-            )}
           </div>
         ) : (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
@@ -201,7 +160,7 @@ export default function Alerts() {
               </tr>
             </thead>
             <tbody>
-              {items.map((a) => (
+              {paged.map((a) => (
                 <tr key={a.id}>
                   <td>
                     <strong>{a.name}</strong>
@@ -216,15 +175,18 @@ export default function Alerts() {
                     </span>
                   </td>
                   <td>
-                    <button className="btn-icon" onClick={() => remove(a.id)}>
-                      <Trash2 size={14} />
-                    </button>
+                    {isAdmin && (
+                      <button className="btn-icon" onClick={() => remove(a.id)}>
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+        <Pagination {...pgProps} />
       </div>
 
       {open && (

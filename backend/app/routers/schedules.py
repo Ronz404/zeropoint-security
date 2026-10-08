@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from ..models import ScheduleCreate
 from ..services import gvm_client
+from ..services.auth import require_admin
 
 router = APIRouter(prefix="/api/schedules", tags=["schedules"])
 
@@ -14,7 +15,7 @@ def list_schedules():
 
 
 @router.post("", status_code=201)
-def create_schedule(payload: ScheduleCreate):
+def create_schedule(payload: ScheduleCreate, _=Depends(require_admin)):
     try:
         sid = gvm_client.create_schedule(
             name=payload.name,
@@ -28,7 +29,7 @@ def create_schedule(payload: ScheduleCreate):
 
 
 @router.delete("/{schedule_id}", status_code=204)
-def delete_schedule(schedule_id: str):
+def delete_schedule(schedule_id: str, _=Depends(require_admin)):
     try:
         gvm_client.delete_schedule(schedule_id)
     except Exception as exc:

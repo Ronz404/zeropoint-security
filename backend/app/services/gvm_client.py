@@ -53,7 +53,7 @@ def _is_predefined(element) -> bool:
 
 def list_targets() -> list[dict]:
     with gmp_session() as gmp:
-        response = gmp.get_targets()
+        response = gmp.get_targets(filter_string="rows=-1")
         return [_xml_to_dict(t) for t in response.findall("target")]
 
 
@@ -111,7 +111,7 @@ def delete_target(target_id: str) -> None:
 
 def list_credentials() -> list[dict]:
     with gmp_session() as gmp:
-        response = gmp.get_credentials()
+        response = gmp.get_credentials(filter_string="rows=-1")
         return [_xml_to_dict(c) for c in response.findall("credential")]
 
 
@@ -153,7 +153,7 @@ def delete_credential(credential_id: str) -> None:
 
 def list_scan_configs() -> list[dict]:
     with gmp_session() as gmp:
-        response = gmp.get_scan_configs()
+        response = gmp.get_scan_configs(filter_string="rows=-1")
         return [_xml_to_dict(c) for c in response.findall("config")]
 
 
@@ -167,7 +167,7 @@ def list_scanners() -> list[dict]:
 
 def list_tasks() -> list[dict]:
     with gmp_session() as gmp:
-        response = gmp.get_tasks()
+        response = gmp.get_tasks(filter_string="rows=-1")
         return [_xml_to_dict(t) for t in response.findall("task")]
 
 
@@ -252,7 +252,7 @@ def delete_task(task_id: str) -> None:
 
 def list_schedules() -> list[dict]:
     with gmp_session() as gmp:
-        response = gmp.get_schedules()
+        response = gmp.get_schedules(filter_string="rows=-1")
         return [_xml_to_dict(s) for s in response.findall("schedule")]
 
 
@@ -439,9 +439,9 @@ def get_dashboard_summary() -> dict:
 def list_assets(asset_type: str = "host") -> list[dict]:
     with gmp_session() as gmp:
         if asset_type == "host":
-            response = gmp.get_hosts()
+            response = gmp.get_hosts(filter_string="rows=-1")
         else:
-            response = gmp.get_operating_systems()
+            response = gmp.get_operating_systems(filter_string="rows=-1")
 
         assets = []
         for a in response.findall("asset"):
@@ -473,7 +473,7 @@ def list_assets(asset_type: str = "host") -> list[dict]:
 
 def list_port_lists() -> list[dict]:
     with gmp_session() as gmp:
-        response = gmp.get_port_lists()
+        response = gmp.get_port_lists(filter_string="rows=-1")
         out = []
         for pl in response.findall("port_list"):
             out.append({
@@ -505,7 +505,7 @@ def delete_port_list(port_list_id: str) -> None:
 
 def list_scan_configs_detailed() -> list[dict]:
     with gmp_session() as gmp:
-        response = gmp.get_scan_configs()
+        response = gmp.get_scan_configs(filter_string="rows=-1")
         out = []
         for c in response.findall("config"):
             out.append({
@@ -694,7 +694,7 @@ def search_cve(cve_id: str) -> dict:
 def list_alerts() -> list[dict]:
     """List configured alerts."""
     with gmp_session() as gmp:
-        response = gmp.get_alerts()
+        response = gmp.get_alerts(filter_string="rows=-1")
         out = []
         for a in response.findall("alert"):
             method = a.find("method")

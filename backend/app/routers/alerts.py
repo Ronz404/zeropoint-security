@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from ..services import gvm_client
+from ..services.auth import require_admin
 from ..services.email_service import is_configured, send_scan_complete_email
 from ..services.scan_monitor import register_notification
 from ..config import settings
@@ -29,7 +30,7 @@ def list_alerts():
 
 
 @router.post("", status_code=201)
-def create_email_alert(payload: EmailAlertCreate):
+def create_email_alert(payload: EmailAlertCreate, _=Depends(require_admin)):
     try:
         alert_id = gvm_client.create_email_alert(
             name=payload.name,
@@ -43,7 +44,7 @@ def create_email_alert(payload: EmailAlertCreate):
 
 
 @router.delete("/{alert_id}", status_code=204)
-def delete_alert(alert_id: str):
+def delete_alert(alert_id: str, _=Depends(require_admin)):
     try:
         gvm_client.delete_alert(alert_id)
     except Exception as exc:

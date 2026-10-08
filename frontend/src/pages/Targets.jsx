@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { Plus, Trash2, Target as TargetIcon, Upload } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import Modal from '../components/Modal';
+import Pagination, { usePagination } from '../components/Pagination';
 
 export default function Targets() {
+  const { isAdmin } = useAuth();
   const [targets, setTargets] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', hosts: '', comment: '', port_list_id: '' });
@@ -89,25 +92,29 @@ export default function Targets() {
     }
   }
 
+  const [paged, pgProps] = usePagination(targets, 'target');
+
   return (
     <div>
       <div className="page-header">
         <h2>Targets</h2>
-        <div className="flex" style={{ gap: 8 }}>
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            ref={fileInputRef}
-            onChange={handleCsvFile}
-            style={{ display: 'none' }}
-          />
-          <button className="btn-secondary btn" onClick={triggerImport} disabled={importing}>
-            <Upload size={14} /> {importing ? 'Importing...' : 'Import CSV'}
-          </button>
-          <button className="btn" onClick={openModal}>
-            <Plus size={14} /> New target
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="flex" style={{ gap: 8 }}>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              ref={fileInputRef}
+              onChange={handleCsvFile}
+              style={{ display: 'none' }}
+            />
+            <button className="btn-secondary btn" onClick={triggerImport} disabled={importing}>
+              <Upload size={14} /> {importing ? 'Importing...' : 'Import CSV'}
+            </button>
+            <button className="btn" onClick={openModal}>
+              <Plus size={14} /> New target
+            </button>
+          </div>
+        )}
       </div>
 
       {importResult && (
@@ -154,21 +161,24 @@ export default function Targets() {
               </tr>
             </thead>
             <tbody>
-              {targets.map((t) => (
+              {paged.map((t) => (
                 <tr key={t.id}>
                   <td>{t.name}</td>
                   <td><code style={{ color: 'var(--text-muted)' }}>{t.hosts}</code></td>
                   <td>{t.comment || ''}</td>
                   <td>
-                    <button className="btn-icon" onClick={() => remove(t.id)}>
-                      <Trash2 size={14} />
-                    </button>
+                    {isAdmin && (
+                      <button className="btn-icon" onClick={() => remove(t.id)}>
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+        <Pagination {...pgProps} />
       </div>
 
       {open && (

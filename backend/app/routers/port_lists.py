@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from ..services import gvm_client
+from ..services.auth import require_admin
 
 router = APIRouter(prefix="/api/port-lists", tags=["port-lists"])
 
@@ -21,7 +22,7 @@ def list_port_lists():
 
 
 @router.post("", status_code=201)
-def create_port_list(payload: PortListCreate):
+def create_port_list(payload: PortListCreate, _=Depends(require_admin)):
     try:
         pl_id = gvm_client.create_port_list(
             name=payload.name,
@@ -34,7 +35,7 @@ def create_port_list(payload: PortListCreate):
 
 
 @router.delete("/{port_list_id}", status_code=204)
-def delete_port_list(port_list_id: str):
+def delete_port_list(port_list_id: str, _=Depends(require_admin)):
     try:
         gvm_client.delete_port_list(port_list_id)
     except Exception as exc:

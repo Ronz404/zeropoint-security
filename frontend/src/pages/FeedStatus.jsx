@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Database, Search, RefreshCw, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
+import { Term } from '../components/Tooltip';
+
+/* ------------------------------------------------------------------ */
+/* Technical-term definitions (layman-friendly)                        */
+/* ------------------------------------------------------------------ */
+const TERMS = {
+  NVT:  'Network Vulnerability Test. A small script that checks one specific weakness on a target. OpenVAS ships tens of thousands of NVTs.',
+  SCAP: 'Security Content Automation Protocol. A standardized format (by NIST) for describing vulnerabilities, configuration rules, and compliance checks.',
+  CERT: 'Computer Emergency Response Team advisories. Official security bulletins from national CERT organizations about newly discovered threats.',
+  GVMD: 'Greenbone Vulnerability Manager Daemon. The core service that coordinates scans, stores results, and manages users behind the scenes.',
+};
 
 export default function FeedStatus() {
   const [feeds, setFeeds] = useState([]);
@@ -32,6 +43,15 @@ export default function FeedStatus() {
     }
   }
 
+  /** Render feed type with tooltip when applicable */
+  function FeedType({ type }) {
+    const upper = (type || '').toUpperCase();
+    if (TERMS[upper]) {
+      return <Term label={type} definition={TERMS[upper]} position="right" />;
+    }
+    return <>{type}</>;
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -41,8 +61,32 @@ export default function FeedStatus() {
         </button>
       </div>
 
+      {/* Informational blurb */}
+      <div style={{
+        background: 'var(--bg-elev)',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        padding: 16,
+        marginBottom: 16,
+        fontSize: 13,
+        color: 'var(--text-muted)',
+        lineHeight: 1.7,
+      }}>
+        ZeroPoint Security downloads vulnerability data from several feeds so scans
+        stay current. Each feed provides a different category of security
+        information:
+        {' '}<Term label="NVT" definition={TERMS.NVT} /> feeds contain the actual
+        test scripts,
+        {' '}<Term label="SCAP" definition={TERMS.SCAP} /> feeds carry
+        standardized vulnerability descriptions (CVEs and CPEs), and
+        {' '}<Term label="CERT" definition={TERMS.CERT} /> feeds include official
+        advisories from national response teams. All feeds are managed by
+        {' '}<Term label="GVMD" definition={TERMS.GVMD} />, the core engine
+        running behind the scenes.
+      </div>
+
       {loading ? (
-        <div className="empty">Loading…</div>
+        <div className="empty">Loading...</div>
       ) : (
         <>
           <div className="table-wrapper" style={{ marginBottom: 20 }}>
@@ -62,7 +106,7 @@ export default function FeedStatus() {
                   </div></td></tr>
                 ) : feeds.map((f) => (
                   <tr key={f.type}>
-                    <td><strong>{f.type}</strong></td>
+                    <td><strong><FeedType type={f.type} /></strong></td>
                     <td>{f.name}</td>
                     <td style={{ color: 'var(--text-muted)' }}>{f.version || '—'}</td>
                     <td>
@@ -132,7 +176,7 @@ export default function FeedStatus() {
                     target="_blank" rel="noreferrer"
                     style={{ color: 'var(--accent)' }}
                   >
-                    View on NVD →
+                    View on NVD &rarr;
                   </a>
                 </div>
               </div>

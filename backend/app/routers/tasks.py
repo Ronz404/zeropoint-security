@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from ..models import TaskCreate
 from ..services import gvm_client
+from ..services.auth import require_admin
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -40,7 +41,7 @@ def get_task(task_id: str):
 
 
 @router.post("", status_code=201)
-def create_task(payload: TaskCreate):
+def create_task(payload: TaskCreate, _=Depends(require_admin)):
     try:
         tid = gvm_client.create_task(
             name=payload.name,
@@ -56,7 +57,7 @@ def create_task(payload: TaskCreate):
 
 
 @router.post("/{task_id}/start")
-def start_task(task_id: str):
+def start_task(task_id: str, _=Depends(require_admin)):
     try:
         report_id = gvm_client.start_task(task_id)
         return {"report_id": report_id}
@@ -65,7 +66,7 @@ def start_task(task_id: str):
 
 
 @router.post("/{task_id}/stop")
-def stop_task(task_id: str):
+def stop_task(task_id: str, _=Depends(require_admin)):
     try:
         gvm_client.stop_task(task_id)
         return {"status": "stopped"}
@@ -74,7 +75,7 @@ def stop_task(task_id: str):
 
 
 @router.delete("/{task_id}", status_code=204)
-def delete_task(task_id: str):
+def delete_task(task_id: str, _=Depends(require_admin)):
     try:
         gvm_client.delete_task(task_id)
     except Exception as exc:

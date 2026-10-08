@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from ..services import gvm_client
+from ..services.auth import require_admin
 from ..services.scan_monitor import register_notification
 
 router = APIRouter(prefix="/api/quickscans", tags=["quickscans"])
@@ -196,7 +197,7 @@ def _process_options(opts: ScanOptions | None, scan_name: str) -> dict:
 # =====================================================================
 
 @router.post("/tls-certificate", status_code=201)
-def create_tls_scan(payload: TlsScanCreate):
+def create_tls_scan(payload: TlsScanCreate, _=Depends(require_admin)):
     """Quick-scan preset for TLS / SSL certificate checks."""
     try:
         cred_ids = {}
@@ -256,7 +257,7 @@ def create_tls_scan(payload: TlsScanCreate):
 
 
 @router.post("/discovery", status_code=201)
-def create_discovery_scan(payload: DiscoveryScanCreate):
+def create_discovery_scan(payload: DiscoveryScanCreate, _=Depends(require_admin)):
     """Quick-scan preset for network discovery."""
     try:
         cred_ids = {}
@@ -314,7 +315,7 @@ def create_discovery_scan(payload: DiscoveryScanCreate):
 
 
 @router.post("/vulnerability", status_code=201)
-def create_vuln_scan(payload: VulnScanCreate):
+def create_vuln_scan(payload: VulnScanCreate, _=Depends(require_admin)):
     """Quick vulnerability scan. Creates target, task, and starts it."""
     try:
         scan_name = payload.name or f"Vuln scan - {payload.host}"

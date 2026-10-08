@@ -1,11 +1,27 @@
 // Tiny fetch wrapper around the FastAPI backend.
 const BASE = '/api';
 
+function getToken() {
+  return localStorage.getItem('zp_token');
+}
+
 async function request(path, options = {}) {
+  const token = getToken();
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers,
   });
+  if (res.status === 401) {
+    // Token expired or invalid, clear auth and redirect to login
+    localStorage.removeItem('zp_token');
+    localStorage.removeItem('zp_user');
+    window.location.href = '/login';
+    throw new Error('Session expired. Please sign in again.');
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`${res.status}: ${text}`);
